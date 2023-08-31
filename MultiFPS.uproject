@@ -1,0 +1,16 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "{93E0CA51-4CDA-4379-AB89-32802C985B95}",
+	"Category": "",
+	"Description": "",
+	"Modules": [
+		{
+			"Name": "MultiFPS",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"AdditionalDependencies": [
+				"Engine"
+			]
+		}
+	]
+}
