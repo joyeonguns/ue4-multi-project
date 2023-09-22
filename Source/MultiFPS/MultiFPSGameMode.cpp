@@ -2,6 +2,8 @@
 
 #include "MultiFPSGameMode.h"
 #include "MultiFPSCharacter.h"
+#include <Kismet/GameplayStatics.h>
+#include "MyPlayerController.h"
 #include "UObject/ConstructorHelpers.h"
 
 AMultiFPSGameMode::AMultiFPSGameMode()
@@ -12,4 +14,22 @@ AMultiFPSGameMode::AMultiFPSGameMode()
 	{
 		DefaultPawnClass = PlayerPawnBPClass.Class;
 	}
+}
+
+void AMultiFPSGameMode::CollectChat(FString chat)
+{
+	ChatLog.Add(chat);
+
+	TSubclassOf<AMyPlayerController> playerContollerclass;
+	playerContollerclass = AMyPlayerController::StaticClass();
+
+	TArray<AActor*> PlayerControlls;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), playerContollerclass, PlayerControlls);
+
+
+	for (AActor* controll : PlayerControlls) {
+		auto con = Cast<AMyPlayerController>(controll);
+		con->SetChatLogs(ChatLog);
+	}
+
 }

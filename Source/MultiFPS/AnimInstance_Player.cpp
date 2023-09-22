@@ -3,3 +3,37 @@
 
 #include "AnimInstance_Player.h"
 
+UAnimInstance_Player::UAnimInstance_Player()
+{
+
+}
+
+void UAnimInstance_Player::NativeUpdateAnimation(float DeltaTime)
+{
+	Super::NativeUpdateAnimation(DeltaTime);
+}
+
+void UAnimInstance_Player::AnimNotify_ReloadStart()
+{
+	OnDelicate_GunReload_Start.Broadcast();
+}
+
+void UAnimInstance_Player::AnimNotify_ReloadEnd()
+{
+	OnDelicate_GunReload_End.Broadcast();
+}
+
+void UAnimInstance_Player::AnimNotify_StartChangeGun()
+{
+	OnDelicate_StartChangeGun.Broadcast();
+}
+
+void UAnimInstance_Player::AnimNotify_EndChangeGun()
+{
+	OnDelicate_EndChangeGun.Broadcast();
+}
+
+void UAnimInstance_Player::AnimNotify_ChangeGun()
+{
+	OnDelicate_ChangeGun.Broadcast();
+}

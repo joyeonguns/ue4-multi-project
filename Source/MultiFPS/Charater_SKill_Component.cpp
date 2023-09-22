@@ -20,7 +20,7 @@ void UCharater_SKill_Component::BeginPlay()
 	Super::BeginPlay();
 
 	// ...
-	
+
 }
 
 
@@ -30,5 +30,60 @@ void UCharater_SKill_Component::TickComponent(float DeltaTime, ELevelTick TickTy
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
 	// ...
+	if (!canSkill0) {
+		cur_skill0_time -= (DeltaTime * skill_Haste);
+		if (cur_skill0_time <= 0) {
+			cur_skill0_time = 0;
+			canSkill0 = true;
+		}
+		OnDelicate_UpdateSkill0CoolTime.Broadcast(cur_skill0_time, skill0_CoolTime);
+	}
+
+	if (!canSkill1) {
+		cur_skill1_time -= (DeltaTime * skill_Haste);
+
+		if (cur_skill1_time <= 0) {
+			cur_skill1_time = 0;
+			canSkill1 = true;
+		}
+		OnDelicate_UpdateSkill1CoolTime.Broadcast(cur_skill1_time, skill1_CoolTime);
+	}
+
+}
+
+void UCharater_SKill_Component::InputSkill0()
+{
+	if (canSkill0) {
+		ActionSkill0();
+	}
+	else {
+		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, TEXT("Skill0 is CoolTime"));
+	}
+}
+
+void UCharater_SKill_Component::InputSkill1()
+{
+	if (canSkill1) {
+		ActionSkill1();
+	}
+	else {
+		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, TEXT("Skill1 is CoolTime"));
+	}
+}
+
+void UCharater_SKill_Component::ActionSkill0()
+{
+	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, TEXT("ActionSkill0"));
+
+	canSkill0 = false;
+	cur_skill0_time = skill0_CoolTime;
+}
+
+void UCharater_SKill_Component::ActionSkill1()
+{
+	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, TEXT("ActionSkill1"));
+
+	canSkill1 = false;
+	cur_skill1_time = skill1_CoolTime;
 }
 

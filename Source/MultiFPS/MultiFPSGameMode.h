@@ -13,6 +13,12 @@ class AMultiFPSGameMode : public AGameModeBase
 
 public:
 	AMultiFPSGameMode();
+
+	void CollectChat(FString chat);
+
+private:
+	UPROPERTY()
+		TArray<FString> ChatLog;
 };
 
 
