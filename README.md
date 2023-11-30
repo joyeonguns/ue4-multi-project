@@ -10,6 +10,42 @@
 
 **ThirdPersonCharacter** 
 
+### 플레이어 컨트롤러 클래스
 
+**MyPlayerController** 
+
+### ActorComponent 클래스
+
+**Character_State_Component** 
+
+**Charater_SKill_Component**
+
+**ActorComponent_FloatingDamage**
+
+### Actor 클래스
+
+**Actor_Projectile** 
+
+**MyGunActor**
+
+## CameraShake 클래스
+
+**MyMatineeCameraShake**
+
+### UserWidget 클래스
+
+**UserWidget_ChatLogs** 
+
+**UserWidget_ChatUI**
+
+**UserWidget_Crosshair**
+
+**UserWidget_DamageText**
+
+**UserWidget_Dead**
+
+**UserWidget_TeamSelecUI**
+
+**UserWidget_TrainingSettingMenu.**
 
 Developed with Unreal Engine 4
