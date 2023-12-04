@@ -39,6 +39,12 @@
     데미지 텍스트(Userwidget)를 Viewport에 띄우는데 사용
     해당 플레이어의 클라이언트에서만 데미지 텍스트를 띄우기 위해 캐릭터클래스에 부착
 
+**Character_State_Component**
+
+    해당 플레이어의 클라이언트에서만 적용하기위해 캐릭터클래스에 부착
+    Camerashake 클래스를 통해 플래이어의 카메라를 흔들어줌
+    
+
 
 ### 4. Actor 클래스
 
@@ -51,17 +57,24 @@
 **Actor_Projectile** 
 
     MyGunActor의 fire함수를 통해 생성되는 오브젝트
+    투사체 생성시 발사 사운드 재생 및 ProjectileMovement를 통해 빠른속도로 이동
+    빠른 속도로 발사하는 투사체가 오브젝트의 충돌을 감지하기위해 실제 Mesh보다 훨씬 큰 범위를 RayCast를 통해 검출
+    RayCast로 오브젝트가 검출될 경우 OnHit 함수 실행 및 충돌된 위치에 Decal생성을 통해 총알 자국 생성
+    충돌된 오브젝트가 다른팀 플래이어 or 훈련봇일 데미지텍스트 생성 및 데미지적용
+    충돌한 플래이어의 경우 CameraShake에임펀치
     
-    
-    
-
-## CameraShake 클래스
+## 5. CameraShake 클래스
 
 **MyMatineeCameraShake**
 
-### UserWidget 클래스
+    플래이어의 카메라를 흔들어줌
+
+
+### 6. UserWidget 클래스
 
 **UserWidget_ChatLogs** 
+
+    
 
 **UserWidget_ChatUI**
 
