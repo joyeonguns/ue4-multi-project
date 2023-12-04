@@ -6,22 +6,22 @@
 
 ## 클래스에 관한정보
 
-### 캐릭터 클래스
+### 1. 캐릭터 클래스
 
 **ThirdPersonCharacter** 
 
     플래이어 캐릭터 클래스로 이동, 점프, 슬라이딩, 줌 등의 키입력을 통한 조작기능
-    레이케스트를 통한 상호작용 오브젝트 검출  
-    
+    레이케스트를 통한 상호작용 오브젝트 검출      
     줌 상태와 일반상태의 카메라 및 하위오브젝트 상태 전환                
   
 
-### 플레이어 컨트롤러 클래스
+### 2. 플레이어 컨트롤러 클래스
 
 **MyPlayerController** 
+
     각종 Userwidget의 생성 및 제거, 접근 제어 
 
-### ActorComponent 클래스
+### 3. ActorComponent 클래스
 
 **Character_State_Component** 
 
@@ -36,18 +36,22 @@
 **ActorComponent_FloatingDamage**
 
     ThirdPersonCharacter 클래스에 부착되는 컴포넌트
-    데미지 텍스트(Userwidget)를 Viewport에 띄우는데 사용한다.
-    해당 플레이어의 클라이언트에서만 데미지 텍스트를 띄우기 위해 캐릭터클래스에 부착한다.
+    데미지 텍스트(Userwidget)를 Viewport에 띄우는데 사용
+    해당 플레이어의 클라이언트에서만 데미지 텍스트를 띄우기 위해 캐릭터클래스에 부착
 
 
-### Actor 클래스
+### 4. Actor 클래스
 
 **MyGunActor**
 
-    플레이어가 사용할 총 클래스
-    
+    플레이어가 사용할 총 클래스, fire 함수를 통해 서버에 투사체를 생성
+    Gundata 구조체를 통해 데이터를 관리
+    Gundata의 Type이 Auto일 경우 Timeline을 통해 총의 반동기능을 실행    
 
 **Actor_Projectile** 
+
+    MyGunActor의 fire함수를 통해 생성되는 오브젝트
+    
     
     
 
