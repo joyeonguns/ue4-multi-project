@@ -23,6 +23,13 @@ protected:
 public:	
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+	
+	UFUNCTION(unreliable, netmulticast)
+		void PlaySound_OnMulti();
+	UFUNCTION(unreliable, server)
+		void PlaySound_OnServer();
 
-		
+private:
+	UPROPERTY(EditAnywhere, Category = Sound)
+	class USoundBase* FireSound;
 };

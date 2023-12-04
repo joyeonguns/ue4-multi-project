@@ -4,6 +4,8 @@
 #include "Actor_MoveAimTarget.h"
 #include "Net/UnrealNetwork.h"
 #include "Math/RandomStream.h" 
+#include "LevelActor_TrainningRoom.h"
+#include "TrainingLevelScriptActor.h"
 
 // Sets default values
 AActor_MoveAimTarget::AActor_MoveAimTarget()
@@ -33,15 +35,10 @@ void AActor_MoveAimTarget::BeginPlay()
 	MaxLoc = GetActorLocation() + FVector(0, MoveDistance, 0);
 	MinLoc = GetActorLocation() - FVector(0, MoveDistance, 0);
 
-	if (HasAuthority()) {
-		bMoveRight = true;
-		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::Printf(TEXT("Max : %f,  Min : %f,  dis : %f"), GetActorLocation().X, GetActorLocation().Y, GetActorLocation().Z));
-	}
-	else {
-		bMoveRight = true;
-		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::Printf(TEXT("Max : %f,  Min : %f,  dis : %f"), GetActorLocation().X, GetActorLocation().Y, GetActorLocation().Z));
-	
-	}
+
+	bMoveRight = true;
+
+	SetActorLocation(StartLoc);
 
 	ChangeDirection();
 	ChangeSpeed();
@@ -53,32 +50,33 @@ void AActor_MoveAimTarget::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 
 	MoveRepeat(DeltaTime);
+	
+	ChangeSpeed();
 }
 
 void AActor_MoveAimTarget::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	DOREPLIFETIME(AActor_MoveAimTarget, DefLoc);
-	DOREPLIFETIME(AActor_MoveAimTarget, RandMove);
-	DOREPLIFETIME(AActor_MoveAimTarget, curMoveSpeed);
-	DOREPLIFETIME(AActor_MoveAimTarget, direction);
-	DOREPLIFETIME(AActor_MoveAimTarget, MaxLoc);
-	DOREPLIFETIME(AActor_MoveAimTarget, MinLoc);
-	DOREPLIFETIME(AActor_MoveAimTarget, bMoveRight);
 }
 
 void AActor_MoveAimTarget::MoveRepeat(float DeltaTime)
 {	
+	if (MoveSpeed == EMoveSpeed::Stop) {
+		ChangeSpeed();
+
+		//GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::Printf(TEXT("MoveSpeed %f"), MoveSpeed));
+		return;
+	}
+
 	if (FVector::Distance(GetActorLocation(), TargetLoc) >= 50.0f) {
 		direction = (TargetLoc - GetActorLocation()).GetSafeNormal();
 		FVector newLoc = GetActorLocation() + direction * curMoveSpeed * (DeltaTime / 1.0f);
 
+		//SetActorLocation(newLoc);
 		SetActorLocation(newLoc);
-		SetActorLocationOnServer(newLoc);
 	}
 	else {
 		ChangeDirection();
-		ChangeSpeed();
 	}
 }
 
@@ -101,36 +99,39 @@ void AActor_MoveAimTarget::ChangeDirection()
 
 void AActor_MoveAimTarget::ChangeSpeed()
 {
-	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, TEXT("ChangeSpeed"));
+	
+	auto LSA = Cast<ALevelActor_TrainningRoom>(GetWorld()->GetLevelScriptActor());
+	if (LSA) {
+		MoveSpeed = LSA->GetTargetMoveSpeed();
+	}
+	else {
+		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::Printf(TEXT("hm")));
+	}
 
 	switch (MoveSpeed)
 	{
 	case EMoveSpeed::Stop:
 		curMoveSpeed = 0.0f;
+		//GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::Printf(TEXT("Stop %f"), curMoveSpeed));
 		break;
 	case EMoveSpeed::Walk:
 		curMoveSpeed = 300.0f;
+		//GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::Printf(TEXT("Walk %f"), curMoveSpeed));
 		break;
 	case EMoveSpeed::Run:
-		curMoveSpeed = 600.0f;
+		curMoveSpeed = 900.0f;
+		//GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::Printf(TEXT("Run %f"), curMoveSpeed));
 		break;
 	case EMoveSpeed::FastRun:
-		curMoveSpeed = 900.0f;
+		curMoveSpeed = 1200.0f;
+		//GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::Printf(TEXT("FastRun %f"), curMoveSpeed));
 		break;
 	case EMoveSpeed::Random:
 		int32 rand = FMath::RandRange(1,4);
 		curMoveSpeed = rand * 300.0f;
+		//GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::Printf(TEXT("Random %f"), curMoveSpeed));
 		break;
 	}
 }
-//
-void AActor_MoveAimTarget::SetActorLocationOnServer_Implementation(FVector newLoc)
-{
-	SetActorLocationOnMulti(newLoc);
-}
 
-void AActor_MoveAimTarget::SetActorLocationOnMulti_Implementation(FVector newLoc)
-{
-	SetActorLocation(newLoc);
-}
 

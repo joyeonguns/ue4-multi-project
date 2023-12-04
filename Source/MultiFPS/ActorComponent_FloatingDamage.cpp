@@ -2,6 +2,9 @@
 
 
 #include "ActorComponent_FloatingDamage.h"
+#include "MyGameInstance.h"
+#include "Net/UnrealNetwork.h"
+#include <Kismet/GameplayStatics.h>
 
 // Sets default values for this component's properties
 UActorComponent_FloatingDamage::UActorComponent_FloatingDamage()
@@ -31,4 +34,28 @@ void UActorComponent_FloatingDamage::TickComponent(float DeltaTime, ELevelTick T
 
 	// ...
 }
+void UActorComponent_FloatingDamage::SpawnDamageTextActorOnClient_Implementation(int32 _damage, FVector _spwLoc, int32 num, bool bCrit)
+{
+	FVector spwLoc = _spwLoc;
+	FRotator spwRot;
+
+	FActorSpawnParameters spwParam;
+
+	if (GetWorld()) {
+		auto DamageTextActorInstance = GetWorld()->SpawnActor<AActor_DamageText>(DamageTextActorClass, spwLoc, spwRot, spwParam);
+
+		if (DamageTextActorInstance) {
+			DamageTextActorInstance->SetDamageText(_damage, num, bCrit);
+
+			GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Yellow, TEXT("SPawnDamage"));
+		}
+	}
+
+
+	auto GameInst = Cast<UMyGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
+	if (GameInst) {
+		GameInst->Damage += _damage;
+	}
+}
+
 

@@ -9,6 +9,9 @@
 #include <Components/SceneComponent.h>
 #include <Components/SceneCaptureComponent2D.h>
 #include "Engine/CanvasRenderTarget2D.h"
+#include "ActorComponent_FloatingDamage.h"
+#include "SoundComponent.h"
+#include "CameraShake_Component.h"
 #include "ThirdPersonCharacter.generated.h"
 
 DECLARE_MULTICAST_DELEGATE(FOnUpdateHPDelecate);
@@ -31,6 +34,7 @@ public:
 	// Sets default values for this character's properties
 	AThirdPersonCharacter();
 
+
 	/** Camera boom positioning the camera behind the character */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 		class USpringArmComponent* CameraBoom;
@@ -47,14 +51,8 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera)
 		float BaseLookUpRate;
 
-	/*UPROPERTY(EditAnywhere, Category = SpwnActor)
-		TSubclassOf<AActor_Projectile> SpwActorClass;*/
-
 	UPROPERTY(EditAnywhere, Category = SpwnActor)
 		TSubclassOf<AActor_Projectile> SpwProjectileClass;
-
-	//UPROPERTY(EditAnywhere, Category = SpwnActor)
-	//	TSubclassOf<ATestProject1Projectile> ProjectileClass;
 
 	// FirstPerson
 	UPROPERTY(EditAnywhere, Category = FP_Mesh)
@@ -69,7 +67,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadwrite, Category = SpwnActor)
 		class USceneComponent* ShotPoint;
 
-
+	// Gun
 	UPROPERTY(EditAnywhere, Category = Mesh)
 		class USkeletalMesh* sk_Mesh;
 
@@ -79,15 +77,32 @@ public:
 	UPROPERTY(EditAnywhere, Category = SceneCapture)
 		class UCanvasRenderTarget2D* ScopeRenderImage;
 
+	UPROPERTY(EditAnywhere, Category = Materials)
+		TArray<UMaterial*> Mats;
+
+	// Component
 	UPROPERTY(EditAnywhere, Category = Component)
 		class UCharacter_State_Component* Character_State_Component;
 
 	UPROPERTY(EditAnywhere, Category = Component)
 		class UCharater_SKill_Component* Character_Skill_Component;
 
-	UPROPERTY(EditAnywhere, Category = Materials)
-		TArray<UMaterial*> Mats;
+	UPROPERTY(EditAnywhere, Category = Component)
+		class UActorComponent_FloatingDamage* Comp_FloatingDamage;
 
+	UPROPERTY(EditAnywhere, Category = Component)
+		class UAudioComponent* AudioPlayComp;
+
+	UPROPERTY(EditAnywhere, Category = Component)
+		class UCameraShake_Component* CameraShakeComp;
+
+
+
+	UPROPERTY(EditAnywhere, Category = Component)
+		class UCapsuleComponent* HeadCapsule;
+
+
+	void TurnAtRate(float Rate);
 protected:
 
 	/** Resets HMD orientation in VR. */
@@ -103,7 +118,6 @@ protected:
 	 * Called via input to turn at a given rate.
 	 * @param Rate	This is a normalized rate, i.e. 1.0 means 100% of desired turn rate
 	 */
-	void TurnAtRate(float Rate);
 
 	/**
 	 * Called via input to turn look up/down at a given rate.
@@ -133,6 +147,7 @@ protected:
 
 
 public:
+
 	/** Returns CameraBoom subobject **/
 	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
 	/** Returns FollowCamera subobject **/
@@ -140,6 +155,11 @@ public:
 
 
 	FOnUpdateHPDelecate OnUpdateHP;
+
+	void ReSpawn();
+
+	UFUNCTION(reliable, server)
+	void ReSpawnOnServer();
 
 	// INPUT
 	void InputRun();
@@ -204,7 +224,7 @@ public:
 
 	void BeginSetting();
 
-	// 
+	// Reload
 	void InputReload();
 	void Reloading();
 	UFUNCTION(reliable, server)
@@ -216,7 +236,7 @@ public:
 
 	void ArmoFill();
 
-	// 
+	// Zoom
 	void SetZoom(bool _zoom);
 
 	void SetScopeTarget();
@@ -237,10 +257,19 @@ public:
 		EStateEnum _playerState = EStateEnum::Hipfire;
 
 	UPROPERTY(EditAnywhere, BlueprintReadwrite, Replicated)
-		bool Zoom;
+		bool bZoom;
 
 	UPROPERTY(EditAnywhere, BlueprintReadwrite, Replicated)
 		bool OnlyBodyAnim;
+
+	UFUNCTION(BlueprintCallable)
+		bool Get_bZoom();
+
+	void UpdateArmoUI();
+	void UpdateArmoUI(int32 curArmo, int32 MaxArmo);
+
+	UPROPERTY(EditAnywhere, BlueprintReadwrite, Replicated)
+		bool blife = true;
 
 public:
 	// 
@@ -399,11 +428,25 @@ public:
 	UFUNCTION(unreliable, server)
 		void SelectGun_1OnServer();
 
+
 	UPROPERTY(ReplicatedUsing = OnRep_UpdatedAimDirection, EditAnywhere, Category = Gun)
 		FVector HipShotPoint;
 
 	UPROPERTY(Replicated, EditAnywhere, Category = Gun)
 		FVector AimShotPoint;
+
+	void ChangeScope();
+
+	TArray<TWeakObjectPtr<class AMyGunActor>> GetEquipedGuns();
+
+	void SetAimSensitivity(float newAim);
+	float GetAimSensitivity();
+
+	void InputChangeTarget();
+
+	void PlayerDeath();
+
+	FVector HeadLoc();
 
 private:
 	class AMyPlayerController* plController;
@@ -429,6 +472,7 @@ private:
 	UPROPERTY(EditAnywhere, Category = Anim)
 		UAnimMontage* Anim_ChangeGun;
 
+
 	UPROPERTY(Replicated, EditAnywhere, Category = Gun)
 		int32 curGun;
 
@@ -436,10 +480,19 @@ private:
 		TArray<TWeakObjectPtr<class AMyGunActor>> EquipedGuns = { nullptr, nullptr };
 
 	UPROPERTY(ReplicatedUsing = OnRep_UpdatedSearchGun, EditAnywhere, Category = Gun)
-		class AMyGunActor* SearchGun;
+		TWeakObjectPtr<class AMyGunActor> SearchGun;
 
 	UPROPERTY(EditAnywhere, Category = UI)
 		class UWidgetComponent* floatingHP;
+
+	UPROPERTY(EditAnywhere, Category = Sound)
+		class USoundBase* Reload_ArmoOut;
+
+	UPROPERTY(EditAnywhere, Category = Sound)
+		class USoundBase* Reload_ArmoIn;
+
+	UPROPERTY(EditAnywhere, Category = Sound)
+		class USoundBase* Reload_Action;
 
 	UPROPERTY(Replicated, EditAnywhere, Category = Team)
 		ETeamEnum MyTeam;
@@ -485,4 +538,11 @@ private:
 
 
 	FTransform CamTransform;
+
+	FTimerHandle FireTH;
+
+	int32 ScopeIdx;
+
+	UPROPERTY(EditAnywhere, Category = aim)
+		float AimSensitivity = 1.0f;
 };

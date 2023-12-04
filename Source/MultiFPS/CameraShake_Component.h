@@ -24,5 +24,8 @@ public:
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-		
+	void ShakeCamera(float _duration, float _scale);
+
+	UFUNCTION(unreliable, Client)
+	void ShakeCameraOnClient(float _duration, float _scale);
 };

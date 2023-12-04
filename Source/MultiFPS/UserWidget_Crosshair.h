@@ -44,7 +44,7 @@ public:
 
 	void SelectFirstGun();
 
-	void UpdateArmo(FString curArmo, int32 gunNum);
+	void UpdateArmo(FString curArmo, FString MaxArmo, int32 gunNum);
 
 	void GetSecondGun(FString GunName);
 
@@ -112,9 +112,20 @@ private:
 		class UTextBlock* SecondGunName;
 
 	UPROPERTY()
-		class UTextBlock* FirstGunArmo;
+		class UTextBlock* FirstGunCurArmo;
 	UPROPERTY()
-		class UTextBlock* SecondGunArmo;
+		class UTextBlock* SecondGunCurArmo;
 
+	UPROPERTY()
+		class UTextBlock* FirstGunMaxArmo;
+	UPROPERTY()
+		class UTextBlock* SecondGunMaxArmo;
 
+	UPROPERTY()
+		class UTextBlock* Kill;
+	UPROPERTY()
+		class UTextBlock* Death; 
+	UPROPERTY()
+		class UTextBlock* Damage;
+	
 };

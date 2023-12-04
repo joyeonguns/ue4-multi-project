@@ -3,13 +3,3 @@
 #pragma once
 
 #include "CoreMinimal.h"
-
-/**
- * 
- */
-class MULTIFPS_API MyDataTable
-{
-public:
-	MyDataTable();
-	~MyDataTable();
-};

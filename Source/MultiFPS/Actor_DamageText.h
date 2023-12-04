@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include <Components/WidgetComponent.h>
 #include "Actor_DamageText.generated.h"
 
 UCLASS()
@@ -23,4 +24,13 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
+	void SetDamageText(int32 _damage, int32 num, bool bCrit);
+
+
+
+private:
+	UPROPERTY(EditAnywhere, Category = Comp)
+	class UWidgetComponent* WidgetComp;
+
+	FText DamageText;
 };

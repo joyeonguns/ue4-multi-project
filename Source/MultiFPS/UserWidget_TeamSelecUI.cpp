@@ -23,8 +23,7 @@ void UUserWidget_TeamSelecUI::SelectBlueTeam()
 	TWeakObjectPtr<AThirdPersonCharacter> Player;
 	Player = Cast<AThirdPersonCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
 	if (Player.IsValid()) {
-		//Player->SetTeam(ETeamEnum::BlueTeam);
-
+		Player->SetTeam(ETeamEnum::BlueTeam);
 		CloseWidget();
 	}
 }
@@ -34,8 +33,7 @@ void UUserWidget_TeamSelecUI::SelectRedTeam()
 	TWeakObjectPtr<AThirdPersonCharacter> Player;
 	Player = Cast<AThirdPersonCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
 	if (Player.IsValid()) {
-		//Player->SetTeam(ETeamEnum::RedTeam);
-
+		Player->SetTeam(ETeamEnum::RedTeam);
 		CloseWidget();
 	}
 }
@@ -51,8 +49,10 @@ void UUserWidget_TeamSelecUI::OpenUserWidget()
 void UUserWidget_TeamSelecUI::CloseWidget()
 {
 	MainCanvas = Cast<UCanvasPanel>(GetWidgetFromName(TEXT("MainCanvas")));
+	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, TEXT("CloseWidget"));
 	if (MainCanvas && MainCanvas->GetVisibility() == ESlateVisibility::Visible) {
 		MainCanvas->SetVisibility(ESlateVisibility::Hidden);
+
 
 		auto plControll = Cast<AMyPlayerController>(UGameplayStatics::GetPlayerController(GetWorld(), 0));
 		if (plControll) {

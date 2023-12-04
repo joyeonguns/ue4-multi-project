@@ -32,3 +32,11 @@ void USoundComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActor
 	// ...
 }
 
+void USoundComponent::PlaySound_OnMulti_Implementation()
+{
+}
+
+void USoundComponent::PlaySound_OnServer_Implementation()
+{
+}
+

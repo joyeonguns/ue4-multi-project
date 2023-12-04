@@ -7,6 +7,7 @@
 #include "MyMatineeCameraShake.h"
 #include "ThirdPersonCharacter.h"
 #include "Math/UnrealMathUtility.h"
+#include "MyGameInstance.h"
 
 // Sets default values
 AMyGunActor::AMyGunActor()
@@ -20,8 +21,9 @@ AMyGunActor::AMyGunActor()
 
 	RootComponent = ItemBoxComponent;
 	Mesh->AttachToComponent(ItemBoxComponent, FAttachmentTransformRules::KeepRelativeTransform); //AttachTo(ItemBoxComponent);
+	FirePoint->AttachToComponent(Mesh, FAttachmentTransformRules::KeepRelativeTransform); //AttachTo(ItemBoxComponent);
 
-	FirePoint->SetupAttachment(Mesh, TEXT("Muzzle"));
+	//FirePoint->SetupAttachment(Mesh, TEXT("Muzzle"));
 	//AttachToComponent(Mesh, FAttachmentTransformRules::SnapToTargetIncludingScale, TEXT("Muzzle"));
 
 	Damage = 15.0f;
@@ -38,7 +40,7 @@ void AMyGunActor::BeginPlay()
 {
 	Super::BeginPlay();
 
-	M_Armo = GunData.Armo;
+	M_Armo = MyGunData.Armo;
 
 	Set_C_Armo(M_Armo);
 
@@ -72,9 +74,9 @@ void AMyGunActor::BeginPlay()
 		MyTimeLineComp->SetPlayRate(1.0f);
 		MyTimeLineComp->SetLooping(false);
 
-		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, FString::Printf(TEXT(" SetTimeLine : %f "), MyTimeLineComp->GetTimelineLength()));
+		//GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, FString::Printf(TEXT(" SetTimeLine : %f "), MyTimeLineComp->GetTimelineLength()));
 		RecoilTimeLine.SetTimelineLength(10.0f);
-		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, FString::Printf(TEXT(" SetTimeLine : %f "), MyTimeLineComp->GetTimelineLength()));
+		//GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, FString::Printf(TEXT(" SetTimeLine : %f "), MyTimeLineComp->GetTimelineLength()));
 
 		//MyTimeLineComp->PlayFromStart();
 	}
@@ -93,6 +95,16 @@ void AMyGunActor::Tick(float DeltaTime)
 		//MyTimeLineComp->
 	}
 
+
+	if (HasAuthority()) {
+		SyncFirePointTransform(FirePoint->GetComponentTransform());
+		
+	}
+	else {
+		SyncFirePointTransform(FirePoint->GetComponentTransform());
+	}
+
+
 }
 
 void AMyGunActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -108,6 +120,8 @@ void AMyGunActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifet
 	DOREPLIFETIME(AMyGunActor, RecoilRecovery);
 	DOREPLIFETIME(AMyGunActor, OriginRotation);
 	DOREPLIFETIME(AMyGunActor, PostRecoilRotation);
+	DOREPLIFETIME(AMyGunActor, fireCooldown);
+	
 }
 
 USkeletalMeshComponent* AMyGunActor::GetSK_Mesh()
@@ -148,28 +162,31 @@ int32 AMyGunActor::Get_C_Armo()
 
 void AMyGunActor::Set_C_Armo(int32 armo)
 {
-	Set_curArmo(armo);
 	Set_curArmoOnServer(armo);
 	Set_curArmoOnMulti(armo);
+	OnRep_UpdatedC_Armo();
+	
 }
 
 void AMyGunActor::Set_curArmo(int32 armo)
 {
 	C_Armo = armo;
+	OnRep_UpdatedC_Armo();
+	
 }
 
 void AMyGunActor::Set_curArmoOnMulti_Implementation(int32 armo)
 {
-	if (!HasAuthority()) {
-		Set_curArmo(armo);
-	}
+	Set_curArmo(armo);	
+	
 }
 
 void AMyGunActor::Set_curArmoOnServer_Implementation(int32 armo)
 {
-	if (HasAuthority()) {
-		Set_curArmo(armo);
-		Set_curArmoOnMulti(armo);
+	//Set_curArmo(armo);
+	Set_curArmoOnMulti(armo);
+	if (!HasAuthority() && GunOwner) {
+		GunOwner->UpdateArmoUI(C_Armo, M_Armo);
 	}
 }
 
@@ -185,7 +202,11 @@ void AMyGunActor::Set_M_Armo(int32 armo)
 
 void AMyGunActor::FireOnServer_Implementation()
 {
+	if (!HasAuthority() || !GunOwner->HasAuthority()) return;
+
+	//SpawnLoc = GetActorLocation() + GetActorForwardVector() * 100.f; //
 	SpawnLoc = FirePoint->GetComponentLocation();
+
 
 	if (GunOwner == nullptr) return;
 
@@ -199,7 +220,7 @@ void AMyGunActor::FireOnServer_Implementation()
 
 	FVector dir;
 	// 줌
-	if (GunOwner->Zoom) {
+	if (GunOwner->bZoom) {
 		dir = GunOwner->AimShotPoint;
 	}
 	else {
@@ -230,32 +251,33 @@ void AMyGunActor::FireOnServer_Implementation()
 		dir = spreadVec;
 	}
 
-	if (GetWorld()) {
-		auto ProjectileInstance = GetWorld()->SpawnActor<AActor_Projectile>(Projectiles, spwLoc, spwRot, spwParam);
+	if (HasAuthority() && GetWorld()) {
+		auto ProjectileInstance = GetWorld()->SpawnActor<AActor_Projectile>(Projectiles, spwLoc, dir.Rotation(), spwParam);
 
 		if (ProjectileInstance) {
-			ProjectileInstance->OnRep_UpdateDamage(GunData.Damage);
-			ProjectileInstance->SetDirection(dir);
-			ProjectileInstance->OnRep_UpdateSpeed(20000);
-			ProjectileInstance->OnRep_UpdateType(EProjectileEnum::LightShot);
-			ProjectileInstance->Team = GunOwner->GetTeam();
+			ProjectileInstance->SetActorScale3D(FVector(0.1f, 0.1f, 0.1f));
+			ProjectileInstance->SetSetting(MyGunData.Damage, dir, MyGunData.Speed, EProjectileEnum::LightShot, GunOwner->GetTeam(), GunOwner, MyGunData.AimPunch);
+
+			ProjectileInstance->Fire(dir);
 		}
 
+		/*int32 newArmo = C_Armo - 1;
+		Set_C_Armo(newArmo);*/
 	}
 }
 
 void AMyGunActor::ApplyRecoilOnMulti_Implementation(FVector dir)
 {
 	if (fireCooldown <= 0 && C_Armo > 0) {
-		float spread_y = FMath::RandRange(0.f, GunData.Spread_Y * -1);
+		float spread_y = FMath::RandRange(0.f, MyGunData.Spread_Y * -1);
 
-		float spread_x = FMath::RandRange(GunData.Spread_Y * -1, GunData.Spread_Y);
+		float spread_x = FMath::RandRange(MyGunData.Spread_Y * -1, MyGunData.Spread_Y);
 
 		if (GunOwner != nullptr) {
 			GunOwner->AddControllerPitchInput(spread_y);
 			GunOwner->AddControllerYawInput(spread_x);
 
-			GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, FString::Printf(TEXT(" Spread : %f, %f "), spread_x, spread_y));
+			//GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, FString::Printf(TEXT(" Spread : %f, %f "), spread_x, spread_y));
 		}
 	}
 }
@@ -273,6 +295,7 @@ void AMyGunActor::ChargeArmoOnMulti_Implementation(int32 charge)
 
 void AMyGunActor::OnRep_UpdatedC_Armo()
 {
+	//GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, FString::Printf(TEXT(" Armo : %d "), C_Armo));
 }
 
 void AMyGunActor::OnRep_UpdateEquip()
@@ -287,16 +310,16 @@ void AMyGunActor::OnRep_UpdatedMyOwner()
 
 void AMyGunActor::SetMyOwner(AThirdPersonCharacter* _owner)
 {
-	//GunOwner = _owner;
+	GunOwner = _owner;
 	OnRep_UpdatedMyOwner();
 }
 
 void AMyGunActor::Fire(FVector dir)
 {
-	if (GunData.GunType == "Single") {
+	if (MyGunData.GunType == "Single") {
 		SingleFire();
 	}
-	else if (GunData.GunType == "Auto") {
+	else if (MyGunData.GunType == "Auto") {
 		AutoFire();
 	}
 }
@@ -304,21 +327,31 @@ void AMyGunActor::Fire(FVector dir)
 void AMyGunActor::AutoFire()
 {
 	SingleFire();
-	GetWorldTimerManager().SetTimer(TH_AutoFire, this, &AMyGunActor::SingleFire, GunData.ShotTime / 2, true);
+	GetWorldTimerManager().SetTimer(TH_AutoFire, this, &AMyGunActor::SingleFire, MyGunData.ShotTime / 2, true);
 
 	// Timeline을 실행합니다.
-	PlayRecoilTimeLineOnServer();
+	if (HasAuthority()) {
+
+		PlayRecoilTimeLineOnMulti();
+		//PlayRecoilTimeLineOnServer();;
+		if (GunOwner && GunOwner->HasAuthority()) {
+			//GunOwner->InputFireOnMulti();
+		}
+	}
 }
 
 void AMyGunActor::SingleFire()
 {
+	if (fireCooldown <= 0 && C_Armo > 0) {
+		
+	}
+
 	if (HasAuthority()) {
 		if (fireCooldown <= 0 && C_Armo > 0) {
 
-			GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::Printf(TEXT("FireOnServer_Implementation")));
-			fireCooldown = GunData.ShotTime;
-			C_Armo--;
-			OnRep_UpdatedC_Armo();
+			fireCooldown = MyGunData.ShotTime;
+			
+			Set_C_Armo(C_Armo -1);
 
 			FireOnServer();
 
@@ -328,6 +361,8 @@ void AMyGunActor::SingleFire()
 			if (OwnerController) {
 				OwnerController->ClientStartCameraShake(CameraShake->StaticClass(), 1.0f);
 			}
+
+			
 		}
 		else if (fireCooldown <= 0 && C_Armo <= 0) {
 			if (GunOwner == nullptr) return;
@@ -337,11 +372,13 @@ void AMyGunActor::SingleFire()
 		}
 	}
 
+	if (GunOwner == nullptr) return;
+
+	
 }
 
 void AMyGunActor::EndFire()
 {
-	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, FString::Printf(TEXT(" End Fire ")));
 	MyTimeLineComp->Stop();
 	GetWorldTimerManager().ClearTimer(TH_AutoFire);
 
@@ -353,8 +390,7 @@ void AMyGunActor::EndFire()
 
 void AMyGunActor::RecoilInputYaw(float x)
 {
-	RecoilInputYawOnMulti(x);
-	//GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT(" Spread : %f "), x));
+	RecoilInputYawOnServer(x);
 }
 
 void AMyGunActor::RecoilInputYawOnMulti_Implementation(float x)
@@ -363,7 +399,8 @@ void AMyGunActor::RecoilInputYawOnMulti_Implementation(float x)
 		if (GunOwner != nullptr) {
 			FRotator rot = OriginRotation - PostRecoilRotation;
 			float ClampYaw = FMath::Clamp(rot.Pitch, 0.0f, 1.0f);
-			GunOwner->AddControllerYawInput(x * -5.0 * ClampYaw);
+			GunOwner->AddControllerYawInput(x * -1 * ClampYaw);
+			
 		}
 	}
 	else {
@@ -376,9 +413,14 @@ void AMyGunActor::RecoilInputYawOnMulti_Implementation(float x)
 
 }
 
+void AMyGunActor::RecoilInputYawOnServer_Implementation(float x)
+{
+	RecoilInputYawOnMulti(x);
+}
+
 void AMyGunActor::RecoilInputPitch(float x)
 {
-	RecoilInputPitchOnMulti(x);
+	RecoilInputPitchOnServer(x);
 }
 
 void AMyGunActor::RecoilInputPitchOnMulti_Implementation(float x)
@@ -388,7 +430,7 @@ void AMyGunActor::RecoilInputPitchOnMulti_Implementation(float x)
 			FRotator rot = OriginRotation - PostRecoilRotation;
 			float ClampPitch = FMath::Clamp(rot.Pitch, 0.0f, 1.0f);
 
-			GunOwner->AddControllerPitchInput(x * -5 * ClampPitch);
+			GunOwner->AddControllerPitchInput(x * -1 * ClampPitch);
 		}
 	}
 	else {
@@ -400,13 +442,18 @@ void AMyGunActor::RecoilInputPitchOnMulti_Implementation(float x)
 					FRotator rot = OriginRotation - PostRecoilRotation;
 					float ClampPitch = FMath::Clamp(rot.Pitch, 0.0f, 1.0f);
 
-					GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, FString::Printf(TEXT(" pitch : %f "), ClampPitch));
+					//GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, FString::Printf(TEXT(" pitch : %f "), ClampPitch));
 				}
 
 			}
 		}
 	}
 
+}
+
+void AMyGunActor::RecoilInputPitchOnServer_Implementation(float x)
+{
+	RecoilInputPitchOnMulti(x);
 }
 
 void AMyGunActor::RecoilFinish()
@@ -460,14 +507,38 @@ void AMyGunActor::PlayRecoilTimeLine()
 	MyTimeLineComp->PlayFromStart();
 }
 
+float AMyGunActor::GetFireCoolDown()
+{
+	return fireCooldown;
+}
+
+void AMyGunActor::ChangeArmoOnClient_Implementation(int32 newArmo)
+{
+	C_Armo = newArmo;
+	OnRep_UpdatedC_Armo();
+}
+
+void AMyGunActor::ChangeArmoOnServer_Implementation(int32 newArmo)
+{
+	C_Armo = newArmo;
+	ChangeArmoOnClient(newArmo);
+}
+
+void AMyGunActor::SyncFirePointTransform_Implementation(FTransform transform)
+{
+	FirePointLoc = transform;
+	if (GunOwner != nullptr && GunOwner->IsLocallyControlled() ) return;
+
+	FirePoint->SetWorldTransform(FirePointLoc);
+}
+
 void AMyGunActor::PlayRecoilTimeLineOnServer_Implementation()
 {
+	PlayRecoilTimeLineOnMulti();
+}
 
-	if (HasAuthority()) {
-		PlayRecoilTimeLine();
-	}
-	else {
-
-	}
+void AMyGunActor::PlayRecoilTimeLineOnMulti_Implementation()
+{
+	PlayRecoilTimeLine();
 }
 

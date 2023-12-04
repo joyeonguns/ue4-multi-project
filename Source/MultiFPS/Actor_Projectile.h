@@ -6,8 +6,7 @@
 #include "GameFramework/Actor.h"
 #include <Components/SphereComponent.h>
 #include "GameFramework/ProjectileMovementComponent.h"
-#include "Niagara/Public/NiagaraComponent.h"
-#include "NiagaraSystem.h"
+#include "ActorComponent_FloatingDamage.h"
 #include "Actor_Projectile.generated.h"
 
 UENUM(BlueprintType)
@@ -54,18 +53,7 @@ public:
 	void Move(FVector dir);
 
 	UFUNCTION()
-		void OnRep_UpdateDirection();
-
-	UFUNCTION()
-		void OnRep_UpdateDamage(float _damage);
-
-	UFUNCTION()
-		void OnRep_UpdateSpeed(float _speed);
-
-	UFUNCTION()
-		void OnRep_UpdateType(EProjectileEnum type);
-
-	void SetDirection(FVector _dir);
+		void OnRep_UpdateSetting();
 
 
 public:
@@ -91,7 +79,7 @@ public:
 		void SpawnBulletHole(UPrimitiveComponent* OtherComponent, FVector ImpactPoint, FVector ImpactNormal);
 
 
-	UPROPERTY(ReplicatedUsing = OnRep_UpdateType, EditAnywhere, Category = Gun)
+	UPROPERTY(ReplicatedUsing = OnRep_UpdateSetting, EditAnywhere, Category = Gun)
 		EProjectileEnum ProjectileType = EProjectileEnum::LightShot;
 
 
@@ -112,19 +100,28 @@ public:
 	UFUNCTION(unreliable, server)
 		void ShootOnServer(FVector dir);
 
-	UFUNCTION()
-		void OnRep_UpdateDir();
-
-	void SpawnDamage(float _damage);
-
-	UFUNCTION(unreliable, netmulticast)
-		void SpawnNiagaraOnMulti();
 
 	UFUNCTION(unreliable, netmulticast)
 		void SpawnTextureOnMulti(int32 idx);
 
-	UPROPERTY(Replicated)
+	void Fire(FVector dir);
+
+	void FireDirection(FVector dir);
+
+	UFUNCTION(unreliable, netmulticast)
+	void FireDirectionOnServer(FVector dir);
+
+	UFUNCTION(unreliable, server)
+	void FireDirectionOnMulti(FVector dir);
+
+
+	UPROPERTY(Replicated, EditAnywhere, Category=Team)
 		ETeamEnum Team;
+
+	void SetSetting(float _damage, FVector _dir, float _speed, EProjectileEnum _type, ETeamEnum _team, class AThirdPersonCharacter* _BulletOwner, float _AimPunch);
+
+	UPROPERTY(ReplicatedUsing = OnRep_UpdateSetting)
+	class AThirdPersonCharacter* BulletOwner;
 
 private:
 
@@ -137,26 +134,32 @@ private:
 	UPROPERTY(EditAnywhere, Category = Niagara)
 		class  UNiagaraSystem* NiagaraFX;
 
+
 	class UNiagaraComponent* NiagaraComp;
 
 	UPROPERTY(EditAnywhere, Category = Damage)
 		TArray<UTexture*> DamageFonts;
 
-	UPROPERTY(ReplicatedUsing = OnRep_UpdateDamage, EditAnywhere, Category = Gun)
+	UPROPERTY(ReplicatedUsing = OnRep_UpdateSetting, EditAnywhere, Category = Gun)
 		float Damage = 10.0f;
 
-	UPROPERTY(ReplicatedUsing = OnRep_UpdateSpeed, EditAnywhere, Category = Gun)
-		float Speed = 10000.0f;
+	UPROPERTY(ReplicatedUsing = OnRep_UpdateSetting, EditAnywhere, Category = Gun)
+		float Speed = 100.0f;
 
 	UPROPERTY(EditAnywhere, Category = Gun)
 		float LifeTime = 55.0f;
 
-	UPROPERTY(ReplicatedUsing = OnRep_UpdateDirection, EditAnywhere, Category = Gun)
+	UPROPERTY(ReplicatedUsing = OnRep_UpdateSetting, EditAnywhere, Category = Gun)
 		FVector MoveDirection;
 
-	UPROPERTY(ReplicatedUsing = OnRep_UpdateDir, EditAnywhere, Category = Gun)
+	UPROPERTY(ReplicatedUsing = OnRep_UpdateSetting, EditAnywhere, Category = Gun)
 		FVector Direction;
 
 	bool bendMove = false;
 
+	UPROPERTY(EditAnywhere, Category = Sound)
+		class USoundBase* FireSound;
+
+	UPROPERTY(ReplicatedUsing = OnRep_UpdateSetting, EditAnywhere, Category = Gun)
+	float AimPunch;
 };

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "Actor_DamageText.h"
 #include "ActorComponent_FloatingDamage.generated.h"
 
 
@@ -25,4 +26,12 @@ public:
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 		
+	UFUNCTION(unreliable, Client)
+		void SpawnDamageTextActorOnClient(int32 _damage, FVector _spwLoc, int32 num, bool bCrit);
+
+private:
+
+	UPROPERTY(EditAnywhere, Category = Damage)
+		TSubclassOf<AActor_DamageText> DamageTextActorClass;
+
 };

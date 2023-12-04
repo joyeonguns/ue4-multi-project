@@ -14,4 +14,12 @@ class MULTIFPS_API UMyMatineeCameraShake : public UMatineeCameraShake
 {
 	GENERATED_BODY()
 	
+
+public:
+	UMyMatineeCameraShake();
+
+	void SetShakeVal(float ShakeVal);
+
+private:
+	float customAmplitute;
 };

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include <Components/BoxComponent.h>
 #include "Actor_RandomSpawnTarget.generated.h"
 
 UCLASS()
@@ -23,4 +24,18 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
+	void DestroyOgj();
+	
+private:
+	UPROPERTY(EditAnywhere, Category = Component)
+		class USceneComponent* RootComp;
+	UPROPERTY(EditAnywhere, Category = Component)
+		class UBoxComponent* BodyCollider;
+
+	UPROPERTY(EditAnywhere, Category = Component)
+		class UBoxComponent* HeadCollider;
+
+	UPROPERTY(EditAnywhere, Category = Component)
+	class UStaticMeshComponent* Mesh;
+	
 };

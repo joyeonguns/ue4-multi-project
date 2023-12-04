@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include <Components/TextRenderComponent.h>
 #include "Actor_RandomSpawnTimer.generated.h"
 
 UCLASS()
@@ -23,4 +24,15 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
+
+	void StartTimer(float time);
+
+	UFUNCTION(BlueprintCallable, Category = "Function")
+	void SetText(int32 num);
+
+private:
+	UPROPERTY(EditAnywhere, Category = Component)
+	class UTextRenderComponent* TextRender;
+
+	float curTime;
 };

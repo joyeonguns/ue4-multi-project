@@ -5,6 +5,8 @@
 #include "MultiFPSGameMode.h"
 #include "Net/UnrealNetwork.h"
 #include <Kismet/GameplayStatics.h>
+#include "TrainingLevelScriptActor.h"
+#include "ThirdPersonCharacter.h"
 
 AMyPlayerController::AMyPlayerController()
 {
@@ -23,6 +25,7 @@ void AMyPlayerController::SetupInputComponent()
 	Super::SetupInputComponent();
 
 	InputComponent->BindAction(TEXT("Enter"), IE_Pressed, this, &AMyPlayerController::InputEnter);
+	InputComponent->BindAction(TEXT("ESC"), IE_Pressed, this, &AMyPlayerController::InputESC);
 }
 
 
@@ -65,6 +68,23 @@ void AMyPlayerController::OpenUI_Implementation()
 	CrosshairInstance = CreateWidget<UUserWidget_Crosshair>(this, CrosshairClass);
 	if (CrosshairInstance) {
 		CrosshairInstance->AddToViewport();
+	}
+
+	
+
+	if (TrainSettingUIInstance == nullptr) {
+		TrainSettingUIInstance = CreateWidget<UUserWidget_TrainingSettingMenu>(this, TrainSettingUIClass);
+
+		if (TrainSettingUIInstance) {
+			TrainSettingUIInstance->AddToViewport();
+			TrainSettingUIInstance->OnClick_Exit();
+		}
+	}
+
+	DeadUIInstance = CreateWidget<UUserWidget_Dead>(this, DeadUIClass);
+	if (DeadUIInstance) {
+		DeadUIInstance->AddToViewport();
+		DeadUIInstance->CloseUI();
 	}
 
 	if (TeamUIInstance == nullptr) {
@@ -124,14 +144,13 @@ void AMyPlayerController::SetHpBar(float ratio)
 void AMyPlayerController::SetShieldBar(float ratio)
 {
 	CrosshairInstance->SetShieldbarPercent(ratio);
-
 }
 
 void AMyPlayerController::BindSkillComponent(UCharater_SKill_Component* SkillComponent)
 {
 	if (SkillComponent) {
 		CurrentSkillComponent = SkillComponent;
-		if (CurrentSkillComponent.IsValid()) {
+		if (CurrentSkillComponent.IsValid() && CrosshairInstance) {
 			CurrentSkillComponent->OnDelicate_UpdateSkill0CoolTime.AddUObject(this, &AMyPlayerController::SetSkill0CoolTime);
 			CurrentSkillComponent->OnDelicate_UpdateSkill1CoolTime.AddUObject(this, &AMyPlayerController::SetSkill1CoolTime);
 		}
@@ -176,4 +195,56 @@ UUserWidget_Crosshair* AMyPlayerController::GetCrosshairUI()
 	}
 
 	return nullptr;
+}
+
+void AMyPlayerController::InputESC()
+{
+	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, TEXT("InputESC"));
+	if (TrainSettingUIInstance) {
+		OpenSetting();
+	}
+}
+
+void AMyPlayerController::OpenSetting()
+{
+	TrainSettingUIInstance->OpenWidget();
+
+	FInputModeUIOnly mode;
+	SetInputMode(mode);
+	bShowMouseCursor = true;
+}
+
+void AMyPlayerController::CloseSetting()
+{
+	TrainSettingUIInstance->CloseWidget();
+
+	FInputModeGameOnly mode;
+	SetInputMode(mode);
+	bShowMouseCursor = false;
+}
+
+void AMyPlayerController::OpenRespawnUI()
+{
+	DeadUIInstance->OpenUI();
+}
+
+void AMyPlayerController::CloseRespawnUI()
+{
+	DeadUIInstance->CloseUI();
+}
+
+void AMyPlayerController::RespawnPlayer()
+{
+	int32 i = FMath::RandRange(0, 4);
+
+	auto player = Cast<AThirdPersonCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
+	auto LSA = Cast<ATrainingLevelScriptActor>(GetWorld()->GetLevelScriptActor());
+
+	if (player && LSA) {
+		FVector spwLoc = LSA->GetRespawnLocs()[i];
+		
+		player->SetActorLocationOnServer(FVector(3800, 800, 300));
+		player->ReSpawnOnServer();
+		player->ReSpawn();
+	}
 }

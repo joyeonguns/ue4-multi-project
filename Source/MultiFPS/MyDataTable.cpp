@@ -3,10 +3,4 @@
 
 #include "MyDataTable.h"
 
-MyDataTable::MyDataTable()
-{
-}
 
-MyDataTable::~MyDataTable()
-{
-}

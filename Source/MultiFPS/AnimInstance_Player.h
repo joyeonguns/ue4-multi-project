@@ -29,6 +29,11 @@ public:
 	FOnDelicate_NoParam OnDelicate_EndChangeGun;
 	FOnDelicate_NoParam OnDelicate_ChangeGun;
 
+
+	FOnDelicate_NoParam OnDelicate_ReloadArmoOut;
+	FOnDelicate_NoParam OnDelicate_ReloadArmoIn;
+	FOnDelicate_NoParam OnDelicate_ReloadAction;
+
 protected:
 
 private:
@@ -47,6 +52,15 @@ private:
 
 	UFUNCTION()
 		void AnimNotify_ChangeGun();
+
+
+	UFUNCTION()
+		void AnimNotify_Reload_ArmoOut();
+	UFUNCTION()
+		void AnimNotify_Reload_ArmoIn();
+	UFUNCTION()
+		void AnimNotify_Reload_Action();
+
 
 };
 

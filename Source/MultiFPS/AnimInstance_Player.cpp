@@ -37,3 +37,18 @@ void UAnimInstance_Player::AnimNotify_ChangeGun()
 {
 	OnDelicate_ChangeGun.Broadcast();
 }
+
+void UAnimInstance_Player::AnimNotify_Reload_ArmoOut()
+{
+	OnDelicate_ReloadArmoOut.Broadcast();
+}
+
+void UAnimInstance_Player::AnimNotify_Reload_ArmoIn()
+{
+	OnDelicate_ReloadArmoIn.Broadcast();
+}
+
+void UAnimInstance_Player::AnimNotify_Reload_Action()
+{
+	OnDelicate_ReloadAction.Broadcast();
+}

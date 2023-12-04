@@ -6,7 +6,12 @@
 #include "Engine/DecalActor.h"
 #include "ThirdPersonCharacter.h"
 #include "Components/DecalComponent.h"
+#include "Actor_DamageText.h"
+#include "Character_State_Component.h"
 #include <Kismet/GameplayStatics.h>
+#include "MyMatineeCameraShake.h"
+#include <PhysicalMaterials/PhysicalMaterial.h>
+#include "MyGameInstance.h"
 
 // Sets default values
 AActor_Projectile::AActor_Projectile()
@@ -16,10 +21,17 @@ AActor_Projectile::AActor_Projectile()
 
 	SphereComponent = CreateDefaultSubobject<USphereComponent>(TEXT("SphereComponent"));
 	StaticMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ProjectileMesh"));
+	
 	ProjectileMovement = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("ProjectileMovement"));
+	ProjectileMovement->SetUpdatedComponent(RootComponent);
+	ProjectileMovement->InitialSpeed = 100.f; // 초기 속도 설정
+	ProjectileMovement->MaxSpeed = 100.f;
 
 	RootComponent = SphereComponent;
 	StaticMesh->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform); //AttachTo();
+
+
+	//ProjectileMovement->InitialSpeed = 3000.f;
 
 	SetReplicates(true);
 	SetReplicateMovement(true);
@@ -31,14 +43,23 @@ void AActor_Projectile::BeginPlay()
 	Super::BeginPlay();
 
 	if (!HasAuthority()) {
-		OnRep_UpdateDirection();
+		OnRep_UpdateSetting();
 		//GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, FString::Printf(TEXT("%f , %f , %f, "), MoveDirection.X, MoveDirection.Y, MoveDirection.Z));
 
 	}
 
-	SphereComponent->OnComponentBeginOverlap.AddDynamic(this, &AActor_Projectile::OnOverlapBegin);
+	//SphereComponent->OnComponentBeginOverlap.AddDynamic(this, &AActor_Projectile::OnOverlapBegin);
 
-	SphereComponent->OnComponentHit.AddDynamic(this, &AActor_Projectile::OnHit);
+	//SphereComponent->OnComponentHit.AddDynamic(this, &AActor_Projectile::OnHit);
+
+	if (FireSound) {
+		//GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::Printf(TEXT("FireSound Play")));
+		float soundValue = 1.0f;
+		UMyGameInstance* myGameInstance = Cast<UMyGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
+		if (myGameInstance) soundValue = myGameInstance->AudioSound;
+		UGameplayStatics::PlaySoundAtLocation(this, FireSound, GetActorLocation(), GetActorRotation(), soundValue);
+	}
+
 }
 
 void AActor_Projectile::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -49,6 +70,8 @@ void AActor_Projectile::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
 	DOREPLIFETIME(AActor_Projectile, ProjectileType);
 	DOREPLIFETIME(AActor_Projectile, MoveDirection);
 	DOREPLIFETIME(AActor_Projectile, Team);
+	DOREPLIFETIME(AActor_Projectile, BulletOwner);
+	DOREPLIFETIME(AActor_Projectile, AimPunch);
 }
 
 // Called every frame
@@ -58,18 +81,11 @@ void AActor_Projectile::Tick(float DeltaTime)
 
 	if (!bendMove) {
 		SetActorLocationOnServer(MoveDirection);
+		Fire(MoveDirection);
 		//GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, FString::Printf(TEXT(" vec ")));
 
 		bendMove = true;
 	}
-
-	//if (FVector::Distance(GetActorLocation(), MoveDirection) > 10) {
-	//	SetActorLocationOnServer(vec);
-	//	//GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, FString::Printf(TEXT(" arrive ")));
-	//}
-	//else {
-	//	SetActorLocationOnServer(FVector::ZeroVector);
-	//}
 
 	if (HasAuthority()) {
 		if (LifeTime > 0.0f) {
@@ -78,6 +94,21 @@ void AActor_Projectile::Tick(float DeltaTime)
 		else {
 			DestroyObjectOnServer();
 		}
+	}
+
+	FVector Start = GetActorLocation();
+	FVector End = Start + GetActorForwardVector() * 1000; // DeltaTime에 투사체 속도를 곱해 이동 거리 계산
+
+	FHitResult HitResult;
+	FCollisionQueryParams CollisionParams;
+	CollisionParams.AddIgnoredActor(this); // 자신을 무시
+
+	if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_WorldDynamic, CollisionParams))
+	{
+		if (HitResult.GetComponent()->ComponentHasTag("Capsule")) return;
+		
+		// 충돌 감지, OnHit 함수 호출
+		OnHit(SphereComponent, HitResult.GetActor(), HitResult.GetComponent(), HitResult.ImpactPoint, HitResult);
 	}
 }
 
@@ -88,21 +119,9 @@ void AActor_Projectile::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AAct
 			HitOnServer(OtherActor);
 		}
 		else if (!OtherActor->ActorHasTag("Gun")) {
-			GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, FString::Printf(TEXT("Hitt : ")) + OtherActor->GetName());
+			GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, FString::Printf(TEXT("Overlap : ")) + OtherActor->GetName());
 			DestroyObjectOnServer();
 		}
-
-
-
-		/*FRotator rot;
-		rot.Pitch += 90;
-
-		auto Decal = GetWorld()->SpawnActor<ADecalActor>(GetActorLocation(), rot);
-		if (Decal) {
-			Decal->SetDecalMaterial(Decal_Bullethole);
-			Decal->SetLifeSpan(5.0f);
-			Decal->GetDecal()->DecalSize = FVector(15.0f, 15.0f, 15.0f);
-		}*/
 
 		DestroyObjectOnServer();
 	}
@@ -110,21 +129,86 @@ void AActor_Projectile::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AAct
 }
 
 void AActor_Projectile::OnHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, FVector NormalImpulse, const FHitResult& Hit)
-{
+{	
+	bool bCrit = false;
+	int Dmg = Damage;
 
-	if (OtherActor->ActorHasTag("Gun")) return;
+	if (HasAuthority()) {
+		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::Printf(TEXT(" OnHit-HasAuthority ")));
+		if (OtherActor->ActorHasTag("Gun")) return;
 
-	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, FString::Printf(TEXT("OnHit : ")) + OtherActor->GetName());
+		
+		
 
-	/*auto Target = Cast<AThirdPersonCharacter>(OtherActor);
+		auto Target = Cast<AThirdPersonCharacter>(OtherActor);
+		if (Target) {
+			/*FString b_Team, T_Team;
+			const UEnum* enumPtr = FindObject<UEnum>(ANY_PACKAGE, TEXT("ETeamEnum"), true);
+			if (!enumPtr)
+			{
+				b_Team = "Not";
+				T_Team = "Not";
+			}
+			else {
+				b_Team = enumPtr->GetNameStringByIndex((int32)Team);
+				T_Team = enumPtr->GetNameStringByIndex((int32)Target->GetTeam());
+			}
 
-	if (Target) {
-		if (Target->GetTeam() != Team) {
-			UGameplayStatics::ApplyDamage(OtherActor, Damage, UGameplayStatics::GetPlayerController(GetWorld(), 0), this, UDamageType::StaticClass());
+			GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, b_Team + FString::Printf(TEXT(" -> ")) + T_Team);*/
+
+			// 플레이어 타격
+			if (Target->GetTeam() != Team) {
+				
+				float distance = FVector::Distance(Target->GetMesh()->GetSocketLocation("headsocket"), Hit.ImpactPoint);
+				GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::Printf(TEXT(" distance  %f"), distance));
+				
+				// 크리티컬
+				if (distance < 30.f) {
+					bCrit = true;
+					Dmg = Damage * 2;
+				}
+
+				// Floating 데미지 생성 
+
+				// 에임펀치
+				Target->CameraShakeComp->ShakeCamera(1.0f, 15.0f * (bCrit + 1));
+
+				if (Target->Character_State_Component->GetShield() > 0) {
+					// Shield
+					if (BulletOwner != nullptr) {
+						BulletOwner->Comp_FloatingDamage->SpawnDamageTextActorOnClient(Dmg, Hit.ImpactPoint, 1, bCrit);
+					}
+				}
+				else {
+					// Hp
+					if (BulletOwner != nullptr) {
+						BulletOwner->Comp_FloatingDamage->SpawnDamageTextActorOnClient(Dmg, Hit.ImpactPoint, 2, bCrit);
+						
+						
+					}
+				}
+
+				UGameplayStatics::ApplyDamage(OtherActor, Dmg, UGameplayStatics::GetPlayerController(GetWorld(), 0), this, UDamageType::StaticClass());
+			}
 		}
-	}*/
+		else {
+			// 더미 타겟
+			if (OtherActor->ActorHasTag("TrainingBot")) {
+				if (BulletOwner != nullptr) {
+					if (OtherComponent->ComponentHasTag("Head")) {
+						bCrit = true;
+						Dmg = Damage * 2;
+					}
+					BulletOwner->Comp_FloatingDamage->SpawnDamageTextActorOnClient(Dmg, Hit.ImpactPoint, 0, bCrit);
+				}
+			}
+		}		
+	}
+	else {
 
+		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT(" OnHit-HasAuthority X  ")));
 
+	}
 
 	SpawnBulletHole(OtherComponent, Hit.ImpactPoint, Hit.ImpactNormal);
 }
@@ -134,32 +218,9 @@ void AActor_Projectile::Move(FVector dir)
 	SetActorLocationOnServer(dir);
 }
 
-void AActor_Projectile::OnRep_UpdateDirection()
+void AActor_Projectile::OnRep_UpdateSetting()
 {
-	//MoveDirection = _dir;
-	//GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, GetName() + FString::Printf(TEXT(" :  %f , %f , %f, "), MoveDirection.X, MoveDirection.Y, MoveDirection.Z));
 
-}
-
-void AActor_Projectile::OnRep_UpdateDamage(float _damage)
-{
-	Damage = _damage;
-}
-
-void AActor_Projectile::OnRep_UpdateSpeed(float _speed)
-{
-	Speed = _speed;
-}
-
-void AActor_Projectile::OnRep_UpdateType(EProjectileEnum type)
-{
-	ProjectileType = type;
-}
-
-void AActor_Projectile::SetDirection(FVector _dir)
-{
-	MoveDirection = _dir;
-	OnRep_UpdateDirection();
 }
 
 void AActor_Projectile::HitOnServer_Implementation(AActor* HitActor)
@@ -188,6 +249,7 @@ void AActor_Projectile::SetActorLocationOnServer_Implementation(FVector newLocat
 
 void AActor_Projectile::SetActorLocationOnClient_Implementation(FVector newLocation)
 {
+	//ProjectileMovement->Velocity = newLocation * 50,000,000.0f; //Speed;
 	ProjectileMovement->Velocity = newLocation * Speed;
 }
 
@@ -214,73 +276,55 @@ void AActor_Projectile::SpawnBulletHole_Implementation(UPrimitiveComponent* Othe
 		EAttachLocation::KeepWorldPosition,
 		10.0f);
 
+
 	//GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, TEXT("SpawnBulletHole"));
 
 	Destroy();
-
-	//DestroyObjectOnServer();
 }
 
 void AActor_Projectile::Setloc(FVector loc)
 {
 	SetActorLocation(loc);
-	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, GetName() + FString::Printf(TEXT(" :  %f , %f , %f, "), loc.X, loc.Y, loc.Z));
-
-	//SetDirectionOnServer(loc);
-	//SetDirectionOnClient(loc);
-	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, GetName() + FString::Printf(TEXT(" :  %f , %f , %f, "), MoveDirection.X, MoveDirection.Y, MoveDirection.Z));
 
 }
 
-void AActor_Projectile::OnRep_UpdateDir()
+void AActor_Projectile::Fire(FVector dir)
 {
+	FireDirection(dir);
+	FireDirectionOnServer(dir);
 
 }
 
-void AActor_Projectile::SpawnDamage(float _damage)
+void AActor_Projectile::FireDirection(FVector dir)
+{	
+	//ProjectileMovement->Velocity = dir * ProjectileMovement->InitialSpeed;
+
+	//SphereComponent->AddImpulse(dir * 500.f, NAME_None, true);
+	
+	//SphereComponent->AddImpulse(dir * Speed, NAME_None, true);
+}
+
+void AActor_Projectile::SetSetting(float _damage, FVector _dir, float _speed, EProjectileEnum _type, ETeamEnum _team, AThirdPersonCharacter* _BulletOwner, float _AimPunch)
 {
-	SpawnNiagaraOnMulti();
-	FString dmg = FString::FormatAsNumber((int)_damage);
-	for (char c : dmg) {
-		switch (c)
-		{
-		case '0':
-			SpawnTextureOnMulti(0);
-			break;
-		case '1':
-			SpawnTextureOnMulti(1);
-			break;
-		case '2':
-			SpawnTextureOnMulti(2);
-			break;
-		case '3':
-			SpawnTextureOnMulti(3);
-			break;
-		case '4':
-			SpawnTextureOnMulti(4);
-			break;
-		case '5':
-			SpawnTextureOnMulti(5);
-			break;
-		case '6':
-			SpawnTextureOnMulti(6);
-			break;
-		case '7':
-			SpawnTextureOnMulti(7);
-			break;
-		case '8':
-			SpawnTextureOnMulti(8);
-			break;
-		case '9':
-			SpawnTextureOnMulti(9);
-			break;
-		default:
-			break;
-		}
-	}
+	Damage = _damage;
+	MoveDirection = _dir;
+	Speed = _speed;
+	ProjectileType = _type;
+	Team = _team;
+	BulletOwner = _BulletOwner;
+	AimPunch = _AimPunch;
 
+	OnRep_UpdateSetting();
+}
 
+void AActor_Projectile::FireDirectionOnServer_Implementation(FVector dir)
+{
+	FireDirection(dir);
+}
 
+void AActor_Projectile::FireDirectionOnMulti_Implementation(FVector dir)
+{
+	FireDirection(dir);
 }
 
 void AActor_Projectile::SpawnTextureOnMulti_Implementation(int32 idx)
@@ -290,37 +334,10 @@ void AActor_Projectile::SpawnTextureOnMulti_Implementation(int32 idx)
 	}
 }
 
-void AActor_Projectile::SpawnNiagaraOnMulti_Implementation()
-{
-	NiagaraComp = NewObject<UNiagaraComponent>(this);
-	if (NiagaraComp)
-	{
-		if (NiagaraFX)
-		{
-			FVector SpawnLocation = GetActorLocation() + FVector(0, 30.f, 0);
-
-			NiagaraComp->SetAsset(NiagaraFX);
-			NiagaraComp->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform);
-			NiagaraComp->SetRelativeLocation(SpawnLocation);
-			NiagaraComp->RegisterComponent();
-			NiagaraComp->Activate(true);
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("NiagaraSystem load failed!"));
-		}
-	}
-
-}
-
 void AActor_Projectile::ShootOnClient_Implementation(FVector dir)
 {
 	MoveDirection = (MoveDirection - GetActorLocation()).GetSafeNormal();
 	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, FString::Printf(TEXT("%f , %f , %f, "), MoveDirection.X, MoveDirection.Y, MoveDirection.Z));
-
-
-
-	//SphereComponent->OnComponentBeginOverlap.AddDynamic(this, &AActor_Projectile::OnOverlapBegin);
 
 	ProjectileMovement->AddForce(FVector::ZeroVector);
 }

@@ -12,4 +12,6 @@ class MULTIFPS_API MyGameSetting
 public:
 	MyGameSetting();
 	~MyGameSetting();
+
+	float SoundSize;
 };

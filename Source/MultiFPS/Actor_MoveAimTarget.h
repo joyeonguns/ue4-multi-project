@@ -47,17 +47,12 @@ public:
 	FVector RandomSpeed();
 
 	void ChangeDirection();
+
 	void ChangeSpeed();
 
-	UFUNCTION(reliable, server)
-		void SetActorLocationOnServer(FVector newLoc);
-
-	UFUNCTION(reliable, netmulticast)
-		void SetActorLocationOnMulti(FVector newLoc);
 
 private:
-	UPROPERTY(EditAnywhere, Category = Move)
-	EMoveSpeed MoveSpeed = EMoveSpeed::Walk;
+	EMoveSpeed MoveSpeed = EMoveSpeed::Run;
 
 	UPROPERTY(EditAnywhere, Category = Loc)
 		class USceneComponent* Root;
@@ -68,30 +63,26 @@ private:
 	UPROPERTY(EditAnywhere, Category = Loc)
 		class UStaticMeshComponent* Mesh;
 
-	UPROPERTY(Replicated)
 		float curMoveSpeed = 300.0f;
 
-	UPROPERTY(Replicated)
 		FVector direction;
 
 	UPROPERTY(EditAnywhere, Category = Loc)
 		float MoveDistance = 1450.f;
 
-	UPROPERTY(Replicated)
+	UPROPERTY(EditAnywhere, Category = Loc)
+		FVector StartLoc ;
+
 		bool bMoveRight = true;
 
-	UPROPERTY(Replicated)
 		FVector DefLoc;
 
-	UPROPERTY(Replicated)
 		FVector MaxLoc;
 
-	UPROPERTY(Replicated)
 		FVector MinLoc;
 
 	FVector TargetLoc;
 
-	UPROPERTY(Replicated)
 		bool RandMove = false;
 
 	UPROPERTY(EditAnywhere, Category = Move)

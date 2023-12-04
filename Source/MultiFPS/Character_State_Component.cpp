@@ -3,6 +3,8 @@
 
 #include "Character_State_Component.h"
 #include "MyMatineeCameraShake.h"
+#include "MyPlayerController.h"
+#include <Kismet/GameplayStatics.h>
 #include "ThirdPersonCharacter.h"
 
 // Sets default values for this component's properties
@@ -21,10 +23,12 @@ UCharacter_State_Component::UCharacter_State_Component()
 void UCharacter_State_Component::BeginPlay()
 {
 	Super::BeginPlay();
-	SetHp(100);
-	SetShield(100);
-	// ...
 
+
+	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Beginplay : ")));
+	SetHp(70);
+	SetShield(90);
+	// ...
 }
 
 
@@ -34,15 +38,21 @@ void UCharacter_State_Component::TickComponent(float DeltaTime, ELevelTick TickT
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
 	// ...
-	if (ShieldRegenTime >= 0) {
-		ShieldRegenTime -= DeltaTime;
-	}
-	else {
-		SetShield(CurShield + 20 * DeltaTime);
-		if (CurShield >= 100) {
-			ShieldRegenTime = 10.0f;
+	if (CurShield < 100) {
+		if (ShieldRegenTime > 0) {
+			ShieldRegenTime -= DeltaTime;
+		}
+		else {
+			ShieldRegenTime = 0;
+			SetShield(CurShield + 5 * (DeltaTime / 1));
 		}
 	}
+	else {
+
+	}
+
+	SetShield(CurShield);
+	
 
 }
 
@@ -55,29 +65,36 @@ void UCharacter_State_Component::GetLifetimeReplicatedProps(TArray<FLifetimeProp
 	DOREPLIFETIME(UCharacter_State_Component, MaxHp);
 	DOREPLIFETIME(UCharacter_State_Component, MaxShield);
 	DOREPLIFETIME(UCharacter_State_Component, DefSpeed);
+	DOREPLIFETIME(UCharacter_State_Component, ShieldRegenTime);
 }
 
 void UCharacter_State_Component::TakeDamage(float damage)
 {
-	ShieldRegenTime = 3.0f;
+	ShieldRegenTime = 5.0f;
 	float SheildDamage = 0;
 	float HpDamage = 0;
 
-	SheildDamage = CurShield > damage ? damage : CurShield;
-	HpDamage = damage - CurShield;
+	if (CurShield > damage) {
+		// 쉴드만 데미지
+		SheildDamage = damage;
+		TakeDamageToShield(SheildDamage);
+	}
+	else {
+		SheildDamage = CurShield;
+		HpDamage = damage - CurShield;
 
-	TakeDamageToShield(SheildDamage);
-	TakeDamageToHp(HpDamage);
+		TakeDamageToShield(SheildDamage);
+		TakeDamageToHp(HpDamage);
+	}
 
 
-	ShieldRegenTime = 10.0f;
+
 }
 
 void UCharacter_State_Component::TakeDamageToShield(float damage)
 {
 	if (damage > 0) {
 		SetShield(CurShield - damage);
-		OnDelicate_HpApply.Broadcast(CurHp / MaxHp);
 	}
 }
 
@@ -86,7 +103,7 @@ void UCharacter_State_Component::TakeDamageToHp(float damage)
 	if (damage > 0) {
 
 		SetHp(CurHp - damage);
-		OnDelicate_ShieldApply.Broadcast(CurShield / MaxShield);
+		OnDelicate_HpApply.Broadcast(CurHp / MaxHp);
 
 		if (player.IsValid()) {
 			UMyMatineeCameraShake* CameraShake = NewObject<UMyMatineeCameraShake>();
@@ -110,6 +127,11 @@ void UCharacter_State_Component::SetHpOnClient_Implementation(float newHp)
 	CurHp = newHp;
 	if (CurHp <= 0) {
 		CurHp = 0;
+		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, GetName() + FString::Printf(TEXT(" Die")));			
+		
+		if (player.IsValid()) {
+			player->PlayerDeath();
+		}
 	}
 	else if (CurHp >= MaxHp) {
 		CurHp = MaxHp;
@@ -128,6 +150,9 @@ void UCharacter_State_Component::SetHpOnServer_Implementation(float newHp)
 void UCharacter_State_Component::SetShield(float newShield)
 {
 	SetShieldOnClient(newShield);
+
+	OnDelicate_ShieldApply.Broadcast(CurShield / MaxShield);
+
 }
 
 void UCharacter_State_Component::SetShieldOnClient_Implementation(float newShield)
@@ -140,7 +165,8 @@ void UCharacter_State_Component::SetShieldOnClient_Implementation(float newShiel
 		CurShield = MaxShield;
 	}
 
-	OnDelicate_ShieldApply.Broadcast(CurShield / MaxShield);
+	//OnDelicate_ShieldApply.Broadcast(CurShield / MaxShield);
+
 }
 
 void UCharacter_State_Component::SetShieldOnServer_Implementation(float newShield)
@@ -152,4 +178,15 @@ void UCharacter_State_Component::SetSpeed(float newSpeed)
 {
 	CurSpeed = newSpeed;
 }
+
+float UCharacter_State_Component::GetShield()
+{
+	return CurShield;
+}
+
+float UCharacter_State_Component::GetHp()
+{
+	return CurHp;
+}
+
 

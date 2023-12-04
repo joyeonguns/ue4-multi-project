@@ -9,6 +9,7 @@
 #include "Net/UnrealNetwork.h"
 #include "Actor_Projectile.h"
 #include "Components/TimeLineComponent.h"
+#include "CustomDataTable.h"
 #include "MyGunActor.generated.h"
 
 USTRUCT(BlueprintType)
@@ -20,6 +21,8 @@ public:
 	FGunData() : Armo(0), Damage(0), ShotTime(0), RelordTime(1) {};
 	UPROPERTY(EditAnywhere, Category = "Data")
 		int32 Armo;
+	UPROPERTY(EditAnywhere, Category = "Data")
+		FString GunName;
 	UPROPERTY(EditAnywhere, Category = "Data")
 		float Damage;
 	UPROPERTY(EditAnywhere, Category = "Data")
@@ -126,11 +129,15 @@ public:
 		void RecoilInputYaw(float x);
 	UFUNCTION(unreliable, netmulticast)
 		void RecoilInputYawOnMulti(float x);
+	UFUNCTION(reliable, server)
+		void RecoilInputYawOnServer(float x);
 
 	UFUNCTION()
 		void RecoilInputPitch(float x);
 	UFUNCTION(unreliable, netmulticast)
 		void RecoilInputPitchOnMulti(float x);
+	UFUNCTION(reliable, server)
+		void RecoilInputPitchOnServer(float x);
 
 	UFUNCTION()
 		void RecoilFinish();
@@ -149,6 +156,12 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = Data)
 		struct FGunData GunData;
+
+	UPROPERTY(EditAnywhere, blueprintreadwrite, Category = Data)
+		struct FGunData2 MyGunData;
+
+	class UDataTable* GunDataTable;
+
 
 	void SetSpawnLoc(FVector spwloc);
 
@@ -176,11 +189,25 @@ public:
 
 	UFUNCTION()
 		void PlayRecoilTimeLine();
-	UFUNCTION(unreliable, server)
+	UFUNCTION(reliable, server)
 		void PlayRecoilTimeLineOnServer();
+	UFUNCTION(unreliable, netmulticast)
+		void PlayRecoilTimeLineOnMulti();
 
 	UPROPERTY(Replicated, EditAnywhere, Category = Armo)
 		bool RecoilRecovery = false;
+
+	UFUNCTION(unreliable, server)
+	void SyncFirePointTransform(FTransform transform);
+
+	
+	UFUNCTION(reliable, server)
+	void ChangeArmoOnServer(int32 newArmo);
+
+	UFUNCTION(reliable, netmulticast)
+	void ChangeArmoOnClient(int32 newArmo);
+
+	float GetFireCoolDown();
 
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadwrite, Category = Mesh)
@@ -194,9 +221,7 @@ protected:
 
 	UPROPERTY(ReplicatedUsing = OnRep_UpdatedMyOwner, EditAnywhere, Category = Owner)
 		class AThirdPersonCharacter* GunOwner = nullptr;
-
-	UPROPERTY(EditAnywhere, Category = SPAWN)
-		TSubclassOf<AActor_Projectile> projectile;
+		
 
 	UPROPERTY(EditAnywhere, Category = SPAWN)
 		TSubclassOf<AActor_Projectile> Projectiles;
@@ -208,6 +233,7 @@ protected:
 	UPROPERTY(Replicated, EditAnywhere, Category = Armo)
 		int32 C_Armo;
 
+	UPROPERTY(Replicated, EditAnywhere, Category = Armo)
 	float fireCooldown = 0;
 
 
@@ -219,6 +245,16 @@ protected:
 
 	UPROPERTY(Replicated, EditAnywhere, Category = Armo)
 		FRotator PostRecoilRotation;
+
+	FTransform FirePointLoc;
+
+
+	UPROPERTY(EditAnywhere, Category = Damage)
+		class AActor* DamageTextActorClass;
+
+
+	UPROPERTY(EditAnywhere, Category = Sound)
+		class USoundBase* FireSound;
 
 };
 

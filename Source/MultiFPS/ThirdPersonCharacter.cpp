@@ -21,6 +21,9 @@
 #include "UI_FloatingHP.h"
 #include "Character_State_Component.h"
 #include "Charater_SKill_Component.h"
+#include "MyGameInstance.h"
+#include "UserWidget_Crosshair.h"
+#include "TrainingLevelScriptActor.h"
 // Sets default values
 
 AThirdPersonCharacter::AThirdPersonCharacter()
@@ -82,12 +85,13 @@ AThirdPersonCharacter::AThirdPersonCharacter()
 	Character_Skill_Component = CreateDefaultSubobject<UCharater_SKill_Component>(TEXT("Skill_Component"));
 	Character_Skill_Component->player = this;
 
-	//// Attribute
-	//AbilitySystemComponent = CreateDefaultSubobject<UGASAbilitySystemComponent>("AbilitySystemComponent");
-	//AbilitySystemComponent->SetIsReplicated(true);
-	//AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Minimal);
+	// 플로팅데미지 컴포넌트
+	Comp_FloatingDamage = CreateDefaultSubobject<UActorComponent_FloatingDamage>(TEXT("FloatingDamage_Component"));
 
-	//Attributes = CreateDefaultSubobject<UGASAttributeSet>("Attributes");
+	CameraShakeComp = CreateDefaultSubobject<UCameraShake_Component>(TEXT("CameraShake_Component"));
+
+	//HeadCapsule = CreateDefaultSubobject<UCapsuleComponent>(TEXT("HeadColider"));
+	//HeadCapsule->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetIncludingScale, TEXT("HeadSocket"));
 }
 
 void AThirdPersonCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent)
@@ -116,14 +120,18 @@ void AThirdPersonCharacter::SetupPlayerInputComponent(class UInputComponent* Pla
 	PlayerInputComponent->BindAction("Fire", IE_Pressed, this, &AThirdPersonCharacter::InputFire);
 	PlayerInputComponent->BindAction("Fire", IE_Released, this, &AThirdPersonCharacter::InputFireEnd);
 
+	PlayerInputComponent->BindAction("ChangeScope", IE_Released, this, &AThirdPersonCharacter::ChangeScope);
+
+
+	PlayerInputComponent->BindAction("ChangeTarget", IE_Released, this, &AThirdPersonCharacter::InputChangeTarget);
 
 	// BindAxis
 	PlayerInputComponent->BindAxis("MoveForward", this, &AThirdPersonCharacter::MoveForward);
 	PlayerInputComponent->BindAxis("MoveRight", this, &AThirdPersonCharacter::MoveRight);
 
-	PlayerInputComponent->BindAxis("Turn", this, &APawn::AddControllerYawInput);
+	PlayerInputComponent->BindAxis("Turn", this, &AThirdPersonCharacter::TurnAtRate);
 	//PlayerInputComponent->BindAxis("TurnRate", this, &AThirdPersonCharacter::TurnAtRate);
-	PlayerInputComponent->BindAxis("LookUp", this, &APawn::AddControllerPitchInput);
+	PlayerInputComponent->BindAxis("LookUp", this, &AThirdPersonCharacter::LookUpAtRate);
 	//PlayerInputComponent->BindAxis("LookUpRate", this, &AThirdPersonCharacter::LookUpAtRate);
 
 }
@@ -132,14 +140,9 @@ void AThirdPersonCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Floating HP
-	auto hp_ui = Cast<UUI_FloatingHP>(floatingHP->GetUserWidgetObject());
-	if (hp_ui) {
-		//hp_ui->BindCharacterStat(this);
-	}
-
 	// 조준경 텍스쳐
 	SetScopeTarget();
+
 
 	anim = Cast<UAnimInstance_Player>(GetMesh()->GetAnimInstance());
 	if (anim) {
@@ -149,6 +152,33 @@ void AThirdPersonCharacter::BeginPlay()
 			});
 		anim->OnDelicate_EndChangeGun.AddLambda([this]() -> void {
 			bChangeGun = false;
+			});
+
+		anim->OnDelicate_ReloadArmoOut.AddLambda([this]()-> void {
+			if (Reload_ArmoOut) {
+				float soundValue = 1.0f; 
+				UMyGameInstance* myGameInstance = Cast<UMyGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
+				if(myGameInstance) soundValue = myGameInstance->AudioSound;
+				UGameplayStatics::PlaySoundAtLocation(this, Reload_ArmoOut, ShotPoint->GetComponentLocation(), FRotator(),soundValue);
+			}			
+			});
+
+		anim->OnDelicate_ReloadArmoIn.AddLambda([this]()-> void {
+			if (Reload_ArmoIn) {
+				float soundValue = 1.0f;
+				UMyGameInstance* myGameInstance = Cast<UMyGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
+				if (myGameInstance) soundValue = myGameInstance->AudioSound;
+				UGameplayStatics::PlaySoundAtLocation(this, Reload_ArmoIn, ShotPoint->GetComponentLocation(), FRotator(), soundValue);
+			}
+			});
+
+		anim->OnDelicate_ReloadAction.AddLambda([this]()-> void {
+			if (Reload_Action) {
+				float soundValue = 1.0f;
+				UMyGameInstance* myGameInstance = Cast<UMyGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
+				if (myGameInstance) soundValue = myGameInstance->AudioSound;
+				UGameplayStatics::PlaySoundAtLocation(this, Reload_Action, ShotPoint->GetComponentLocation(), FRotator(), soundValue);
+			}
 			});
 	}
 
@@ -162,25 +192,11 @@ void AThirdPersonCharacter::BeginPlay()
 	// 파쿠르 
 	VaultStartLoc = GetActorLocation();
 	VaultEndLoc = GetActorLocation() + FVector(300.f, 300.f, 300.f);
-
-	// 카메라 초기 설정
-	BeginSetting();
-
+	
 	// 총 발사 위치
 	ShotPoint->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetIncludingScale, TEXT("Gun_R"));
 
-	if (HasAuthority()) {
-		SetSetting();
-	}
-	else {
-		SetSetting();
-	}
-
-	// 체력
-	Character_State_Component->SetHp(100);
-	Character_State_Component->SetShield(100);
-
-
+	ReSpawn();
 }
 
 void AThirdPersonCharacter::Tick(float DeltaTime)
@@ -195,17 +211,24 @@ void AThirdPersonCharacter::Tick(float DeltaTime)
 	Vaulting(DeltaTime);
 
 
-
 	if (HasAuthority()) {
+		// 오브젝트 서치 레이케스트
 		SearchInteractionObj();
+		// 힙샷 포인트 레이케스트
 		SearchHipShotPointDirection();
+		// 조준샷 초인트 레이케스트
 		SearchAimShotPointDirection();
 
+		// FpCamera 좌표 싱크
 		SearchAimOnServer(FP_Camera->GetComponentTransform());
+		// ShotPoint 좌표 싱크
 		SetFireSyncTransformOnServer(ShotPoint->GetComponentTransform());
 	}
 	else {
+
+		// FpCamera 좌표 싱크
 		SearchAimOnServer(FP_Camera->GetComponentTransform());
+		// ShotPoint 좌표 싱크
 		SetFireSyncTransformOnServer(ShotPoint->GetComponentTransform());
 	}
 
@@ -234,13 +257,9 @@ void AThirdPersonCharacter::Tick(float DeltaTime)
 	}
 
 
-	if (EquipedGuns[curGun].IsValid()) {
-		FString armo;
-		armo = FString::FromInt(EquipedGuns[curGun]->Get_C_Armo());
-		if (plController)
-			plController->GetCrosshairUI()->UpdateArmo(armo, curGun);
-	}
+	SetScopeTarget();
 
+	
 }
 
 void AThirdPersonCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -250,10 +269,11 @@ void AThirdPersonCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>
 	DOREPLIFETIME(AThirdPersonCharacter, SearchGun);
 	DOREPLIFETIME(AThirdPersonCharacter, Aim_Pitch);
 	DOREPLIFETIME(AThirdPersonCharacter, Aim_Yaw);
-	DOREPLIFETIME(AThirdPersonCharacter, Zoom);
+	DOREPLIFETIME(AThirdPersonCharacter, bZoom);
 	DOREPLIFETIME(AThirdPersonCharacter, OnlyBodyAnim);
 	DOREPLIFETIME(AThirdPersonCharacter, curGun);
 	DOREPLIFETIME(AThirdPersonCharacter, MyTeam);
+	DOREPLIFETIME(AThirdPersonCharacter, blife);
 
 }
 
@@ -278,6 +298,38 @@ void AThirdPersonCharacter::TouchStopped(ETouchIndex::Type FingerIndex, FVector 
 	StopJumping();
 }
 
+void AThirdPersonCharacter::ReSpawn()
+{
+	// 카메라 초기 설정
+	BeginSetting();
+
+	// 체력
+	Character_State_Component->SetHp(100);
+	Character_State_Component->SetShield(100);
+
+	UpdateArmoUI();
+
+	blife = true;
+
+
+	// 무기 리셋
+	if (EquipedGuns[0].IsValid()) {
+		//EquipedGuns[0]->Destroy();
+		//EquipedGuns[0] = nullptr;
+	}
+
+	if (EquipedGuns[1].IsValid()) {
+		//EquipedGuns[1]->Destroy();
+		//EquipedGuns[1] = nullptr;
+	}
+
+}
+
+void AThirdPersonCharacter::ReSpawnOnServer_Implementation()
+{
+	ReSpawn();
+}
+
 void AThirdPersonCharacter::InputRun()
 {
 	if (bRun == false) {
@@ -294,15 +346,8 @@ void AThirdPersonCharacter::InputRun()
 
 void AThirdPersonCharacter::InputInteraction()
 {
-	//asdf();
-	if (SearchGun != nullptr) {
-		//GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, TEXT(" try Equip "));
-		//EquipGunOnServer();
+	if (SearchGun.IsValid()) {
 		Equip2();
-		//Equip2OnServer();
-		//Equip2OnMulti();
-
-
 	}
 	else {
 		//ThrowGunOnServer();
@@ -337,13 +382,14 @@ void AThirdPersonCharacter::SwitchWalkOnMulti_Implementation()
 void AThirdPersonCharacter::TurnAtRate(float Rate)
 {
 	// calculate delta for this frame from the rate information
-	AddControllerYawInput(Rate * BaseTurnRate * GetWorld()->GetDeltaSeconds());
+	AddControllerYawInput(Rate * AimSensitivity);
+
 }
 
 void AThirdPersonCharacter::LookUpAtRate(float Rate)
 {
 	// calculate delta for this frame from the rate information
-	AddControllerPitchInput(Rate * BaseLookUpRate * GetWorld()->GetDeltaSeconds());
+	AddControllerPitchInput(Rate * AimSensitivity);
 }
 
 void AThirdPersonCharacter::MoveForward(float Value)
@@ -385,6 +431,7 @@ void AThirdPersonCharacter::InputJump()
 			PlayAnimMontageOnServer(Anim_DeepVault);
 			VaultEndLoc = VaultTargetLoc;
 			VaultStartLoc = GetActorLocation();
+
 		}
 	}
 	else if (!GetCharacterMovement()->IsFalling()) {
@@ -436,17 +483,18 @@ void AThirdPersonCharacter::CheckVaulting()
 	);
 
 	FColor DebugColor;
-	if (bResult && HitResult.Location.Z < Start.Z) {
+	if (bResult && HitResult.Location.Z < Start.Z && Cast<AMyGunActor>(HitResult.Actor) == nullptr) {
 		DebugColor = FColor::Green;
-		VaultTargetLoc = HitResult.Location + FVector(0, 0, CapsuleHalfHeight);
+		VaultTargetLoc = HitResult.Location + FVector(0, 0, CapsuleHalfHeight);	
+		bCanVault = true;
 	}
 	else {
 		DebugColor = FColor::Red;
+		bCanVault = false;
 	}
 
-	DrawDebugLine(GetWorld(), Start, End, DebugColor, false, 1.f);
+	//DrawDebugLine(GetWorld(), Start, End, DebugColor, false, 1.f);
 
-	bCanVault = (bResult && HitResult.Location.Z < Start.Z);
 }
 
 void AThirdPersonCharacter::InputSit()
@@ -470,26 +518,21 @@ float AThirdPersonCharacter::TakeDamage(float DamageAmount, FDamageEvent const& 
 {
 	float Damage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 
-	Character_State_Component->TakeDamage(Damage);
-	/*CurrentHP -= Damage;
-
-	if (CurrentHP <= 0) {
-		CurrentHP = 0;
-		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, TEXT(" DIE : ") + GetName());
-		PlayAnimMontageOnServer(Anim_Death);
+	if (HasAuthority()) {
+		//GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("TakeDamage Server ")));
+		Character_State_Component->TakeDamage(Damage);
 	}
-
-	OnUpdateHP.Broadcast();
-	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, GetName() + FString::Printf(TEXT(" : HP : %d"), CurrentHP));
-	*/
-
+	else {
+		//GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("TakeDamage Client ")));
+		Character_State_Component->TakeDamage(Damage);
+	};
 	return Damage;
 }
 
 void AThirdPersonCharacter::ChangeCamera()
 {
 	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, FString::Printf(TEXT("ChangeCamera ")));
-	if (Zoom) {
+	if (bZoom) {
 		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, FString::Printf(TEXT("Zoom")));
 		// TP 전환
 		FP_Camera->SetActive(false);
@@ -502,8 +545,9 @@ void AThirdPersonCharacter::ChangeCamera()
 
 		HiddeFirstPersonOnServer();
 
-		if (EquipedGuns[curGun].IsValid())	EquipedGuns[curGun]->GetSK_Mesh()->SetVisibility(true);
-
+		if (EquipedGuns[curGun].IsValid()) {
+			EquipedGuns[curGun]->GetSK_Mesh()->SetVisibility(true);
+		}
 		//bFirstPersonMode = false;
 
 		_playerState = EStateEnum::Hipfire;
@@ -524,7 +568,10 @@ void AThirdPersonCharacter::ChangeCamera()
 			bUseControllerRotationYaw = true;
 			GetCharacterMovement()->bOrientRotationToMovement = false;
 
-			if (EquipedGuns[curGun].IsValid())	EquipedGuns[curGun]->GetSK_Mesh()->SetVisibility(false);
+			if (EquipedGuns[curGun].IsValid()) {
+				EquipedGuns[curGun]->GetSK_Mesh()->SetVisibility(false);
+				GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, FString::Printf(TEXT("!false")));
+			}	
 
 			//bFirstPersonMode = true;
 
@@ -568,7 +615,7 @@ void AThirdPersonCharacter::SearchInteractionObj()
 		DebugColor = FColor::Red;
 	}
 
-	DrawDebugLine(GetWorld(), Start, End, DebugColor, false, 1.f);
+	//DrawDebugLine(GetWorld(), Start, End, DebugColor, false, 1.f);
 
 	if (bResult) {
 		auto weapon = Cast<AMyGunActor>(HitResult.Actor);
@@ -618,7 +665,7 @@ void AThirdPersonCharacter::SearchHipShotPointDirection()
 
 	FColor DebugColor = FColor::Blue;
 
-	DrawDebugLine(GetWorld(), Start, End, DebugColor, false, 1.f);
+	//DrawDebugLine(GetWorld(), Start, End, DebugColor, false, 1.f);
 }
 
 void AThirdPersonCharacter::SearchAimShotPointDirection()
@@ -649,7 +696,7 @@ void AThirdPersonCharacter::SearchAimShotPointDirection()
 
 	FColor DebugColor = FColor::Green;
 
-	DrawDebugLine(GetWorld(), Start, End, DebugColor, false, 1.f);
+	//DrawDebugLine(GetWorld(), Start, End, DebugColor, false, 1.f);
 
 
 }
@@ -669,18 +716,18 @@ void AThirdPersonCharacter::SearchAimOnMulti_Implementation(FTransform tp)
 
 void AThirdPersonCharacter::InputFire()
 {
+	if (!EquipedGuns[curGun].IsValid()) return;
 	if (bChangeGun == true) return;
+
 	Fire();
-	/*if (EquipedGuns[curGun].IsValid() && EquipedGuns[curGun]->GunData.GunType == "Sniper") return;
 
-	GetWorldTimerManager().SetTimer(TH_Fire, this, &AThirdPersonCharacter::Fire, 0.01f, true);*/
-
+	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, FString::Printf(TEXT(" InputFire  ")));
 }
 
 void AThirdPersonCharacter::InputFireEnd()
 {
 	FireEndOnServer();
-	//GetWorldTimerManager().ClearTimer(TH_Fire);
+	GetWorldTimerManager().ClearTimer(FireTH);
 }
 
 void AThirdPersonCharacter::FireEndOnServer_Implementation()
@@ -696,7 +743,7 @@ void AThirdPersonCharacter::FireEndOnMulti_Implementation()
 }
 
 void AThirdPersonCharacter::Fire()
-{
+{	
 	InputFireOnServer();
 
 	// 재장전
@@ -708,10 +755,9 @@ void AThirdPersonCharacter::SetPitchYaw(float DeltaTime)
 	FRotator CurrentRot = FRotator(Aim_Pitch, Aim_Yaw, 0.0f);
 	FRotator TargetRot = UKismetMathLibrary::NormalizedDeltaRotator(GetControlRotation(), GetActorRotation());
 	FRotator rot = FMath::RInterpTo(CurrentRot, TargetRot, DeltaTime, 15.f);
+	
 	Aim_Yaw = UKismetMathLibrary::ClampAngle(rot.Yaw, -90.f, 90.f);
 	Aim_Pitch = UKismetMathLibrary::ClampAngle(rot.Pitch, -90.f, 90.f);
-
-	//GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, FString::Printf(TEXT("pitch, %f"), Aim_Pitch));
 }
 
 float AThirdPersonCharacter::Get_Pitch()
@@ -727,7 +773,6 @@ float AThirdPersonCharacter::Get_Yaw()
 void AThirdPersonCharacter::BeginSetting()
 {
 	// FP 전환
-			//GetMesh()->SetVisibility(false);
 	FP_Camera->SetActive(true);
 	FollowCamera->SetActive(false);
 	FP_Arms->SetVisibility(true);
@@ -784,9 +829,6 @@ void AThirdPersonCharacter::PlayAnimMontageOnServer_Implementation(UAnimMontage*
 
 void AThirdPersonCharacter::SetActorLocationOnServer_Implementation(FVector newLocation)
 {
-	//FVector dir = (newLocation - GetActorLocation()).GetSafeNormal();
-
-	//GetCharacterMovement()->AddForce(dir * 300000.0f);
 	SetActorLocationOnMulti(newLocation);
 	SetActorLocation(newLocation);
 }
@@ -826,23 +868,62 @@ void AThirdPersonCharacter::ThrowGunOnServer_Implementation()
 
 void AThirdPersonCharacter::InputFireOnServer_Implementation()
 {
-	InputFireOnMulti();
+	if (HasAuthority()) {
+		InputFireOnMulti();
+	}
+	return;
+
+
+	if (EquipedGuns[curGun].IsValid() && EquipedGuns[curGun]->bEquiped && EquipedGuns[curGun]->Get_Owner() == this) {
+
+		if (EquipedGuns[curGun]->Get_C_Armo() > 0) {
+			if (GetMovementComponent()->IsFalling()) {
+				EquipedGuns[curGun]->bSpread = true;
+			}
+			else {
+				EquipedGuns[curGun]->bSpread = false;
+			}
+			EquipedGuns[curGun]->Fire(AimShotPoint);
+			//InputFireOnMulti();
+		}
+		else {
+
+			EquipedGuns[curGun]->EndFire();
+			Reloading();
+		}
+	}
+	else {
+		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, FString::Printf(TEXT("fire_NO Equipe : ")) + EquipedGuns[curGun]->GetOwner()->GetName());
+	}
 }
 
 void AThirdPersonCharacter::ThrowGunOnMulti_Implementation()
 {
-	if (EquipedGuns[curGun].IsValid()) {
-		EquipedGuns[curGun]->GetRootComponent()->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
-		EquipedGuns[curGun]->Set_Equiped(false);
-		EquipedGuns[curGun]->SetMyOwner(nullptr);
+	if (EquipedGuns[1].IsValid()) {
+		EquipedGuns[1]->GetRootComponent()->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
+		EquipedGuns[1]->Set_Equiped(false);
+		EquipedGuns[1]->SetMyOwner(nullptr);
 
-		EquipedGuns[curGun] = nullptr;
+		EquipedGuns[1] = nullptr;
+		OnRep_UpdatedEquipGun();
+	}
+
+	if (EquipedGuns[0].IsValid()) {
+		EquipedGuns[0]->GetRootComponent()->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
+		EquipedGuns[0]->Set_Equiped(false);
+		EquipedGuns[0]->SetMyOwner(nullptr);
+
+		EquipedGuns[0] = nullptr;
 		OnRep_UpdatedEquipGun();
 	}
 }
 
 void AThirdPersonCharacter::InputFireOnMulti_Implementation()
 {
+	
+	/*EquipedGuns[curGun]->PlayRecoilTimeLineOnMulti();
+	return;*/
+
 	if (EquipedGuns[curGun].IsValid() && EquipedGuns[curGun]->bEquiped && EquipedGuns[curGun]->Get_Owner() == this) {
 
 		if (EquipedGuns[curGun]->Get_C_Armo() > 0) {
@@ -855,10 +936,6 @@ void AThirdPersonCharacter::InputFireOnMulti_Implementation()
 
 			EquipedGuns[curGun]->Fire(AimShotPoint);
 
-			if (EquipedGuns[curGun].IsValid())
-				GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::Printf(TEXT(" cur Gun : %d "), curGun));
-
-			//GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, FString::Printf(TEXT("fire_ Equipe")));
 		}
 		else {
 
@@ -867,7 +944,7 @@ void AThirdPersonCharacter::InputFireOnMulti_Implementation()
 		}
 	}
 	else {
-		//GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, FString::Printf(TEXT("fire_NO Equipe")));
+		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, FString::Printf(TEXT("fire_NO Equipe : ")) + EquipedGuns[curGun]->GetOwner()->GetName());
 	}
 }
 
@@ -891,7 +968,7 @@ void AThirdPersonCharacter::InputReload()
 
 void AThirdPersonCharacter::Reloading()
 {
-	if (Zoom) {
+	if (bZoom) {
 		ChangeCamera();
 	}
 	if (!anim->Montage_IsPlaying(Anim_Reload))
@@ -934,7 +1011,6 @@ void AThirdPersonCharacter::ArmoFill()
 {
 	if (EquipedGuns[curGun].IsValid()) {
 		EquipedGuns[curGun]->Set_C_Armo(EquipedGuns[curGun]->Get_M_Armo());
-
 	}
 
 }
@@ -996,7 +1072,7 @@ void AThirdPersonCharacter::InputSkill1()
 
 void AThirdPersonCharacter::InputSelectGun_0()
 {
-	if (Zoom) return;
+	if (bZoom) return;
 
 	if (EquipedGuns[0].IsValid() && curGun == 1) {
 		PlayAnimMontageOnServer(Anim_ChangeGun);
@@ -1010,13 +1086,11 @@ void AThirdPersonCharacter::InputSelectGun_0()
 
 void AThirdPersonCharacter::ChangeGun_0()
 {
+
+	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, TEXT("ChangeGun_0"));
 	if (EquipedGuns[0].IsValid() && curGun == 1) {
 		curGun = 0;
 		EquipedGuns[0]->GetSK_Mesh()->SetVisibility(true);
-
-		if (EquipedGuns[1].IsValid()) {
-			EquipedGuns[1]->GetSK_Mesh()->SetVisibility(false);
-		}
 
 		plController->GetCrosshairUI()->SelectFirstGun();
 	}
@@ -1031,8 +1105,8 @@ void AThirdPersonCharacter::SelectGun_0()
 	if (EquipedGuns[0].IsValid()) {
 		EquipedGuns[0]->AttachToComponent(ShotPoint, FAttachmentTransformRules::SnapToTargetIncludingScale, NAME_None);
 	}
-	if (EquipedGuns[1].IsValid()) {
-		EquipedGuns[1]->GetRootComponent()->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
+	if (EquipedGuns[1].IsValid()) {		
+		EquipedGuns[1]->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetIncludingScale, TEXT("Back_Weapon"));
 	}
 }
 
@@ -1053,8 +1127,10 @@ void AThirdPersonCharacter::SelectGun_0OnServer_Implementation()
 
 void AThirdPersonCharacter::InputSelectGun_1()
 {
-	if (Zoom) return;
+	if (bZoom) return;
+	
 	if (EquipedGuns[1].IsValid() && curGun == 0) {
+		
 		PlayAnimMontageOnServer(Anim_ChangeGun);
 		if (anim) {
 			anim->OnDelicate_ChangeGun.Clear();
@@ -1068,11 +1144,7 @@ void AThirdPersonCharacter::ChangeGun_1()
 {
 	if (EquipedGuns[1].IsValid() && curGun == 0) {
 		curGun = 1;
-		EquipedGuns[1]->GetSK_Mesh()->SetVisibility(true);
-
-		if (EquipedGuns[0].IsValid()) {
-			EquipedGuns[0]->GetSK_Mesh()->SetVisibility(false);
-		}
+		EquipedGuns[1]->GetSK_Mesh()->SetVisibility(true);		
 
 		plController->GetCrosshairUI()->SelectSecondGun();
 	}
@@ -1089,10 +1161,9 @@ void AThirdPersonCharacter::SelectGun_1()
 		EquipedGuns[1]->AttachToComponent(ShotPoint, FAttachmentTransformRules::SnapToTargetIncludingScale, NAME_None);
 	}
 	if (EquipedGuns[0].IsValid()) {
-		EquipedGuns[0]->GetRootComponent()->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
+		EquipedGuns[0]->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetIncludingScale, TEXT("Back_Weapon"));
 	}
 }
-
 
 void AThirdPersonCharacter::SelectGun_1OnMulti_Implementation()
 {
@@ -1119,8 +1190,8 @@ void AThirdPersonCharacter::SetFireSyncTransformOnServer_Implementation(FTransfo
 
 void AThirdPersonCharacter::SetZoom(bool _zoom)
 {
-	Zoom = _zoom;
-	if (Zoom) {
+	bZoom = _zoom;
+	if (bZoom) {
 		GetCharacterMovement()->MaxWalkSpeed = 300.f;
 	}
 	else {
@@ -1137,27 +1208,18 @@ void AThirdPersonCharacter::SetScopeTarget()
 
 void AThirdPersonCharacter::SetSetting()
 {
-	//OnRep_UpdatedStatSetting();
-	//GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Blue, GetName() + FString::Printf(TEXT(" : HP : %f"), CurrentHP));
+
 }
 
 void AThirdPersonCharacter::BindFloatingHP()
 {
-	/*floatingHP = CreateDefaultSubobject<UWidgetComponent>(TEXT("HP_Bar"));
-	floatingHP->SetupAttachment(GetMesh());
 
-	floatingHP->SetRelativeLocation(FVector(0.0f, 0.0f, 200.0f));
-	floatingHP->SetWidgetSpace(EWidgetSpace::Screen);
-	FString uipath = TEXT("WidgetBlueprint'/Game/UI/FloationHP.FloationHP_C'");
-	static ConstructorHelpers::FClassFinder<UUserWidget> widget(*uipath);
-	if (widget.Succeeded()) {
-		floatingHP->SetWidgetClass(widget.Class);
-		floatingHP->SetDrawSize(FVector2D(60.0f, 15.0f));
-	}*/
 }
 
 void AThirdPersonCharacter::InputZoom()
 {
+	if (!EquipedGuns[curGun].IsValid()) return;
+
 	if (anim->Montage_IsPlaying(Anim_Reload)) return;
 
 	if (bzooming) {
@@ -1167,7 +1229,7 @@ void AThirdPersonCharacter::InputZoom()
 	else {
 		ThirdPersonCameraLoc = FollowCamera->GetRelativeLocation();
 		bzooming = true;
-		PlayAnimMontageOnServer(Anim_Zoom);
+		//PlayAnimMontageOnServer(Anim_Zoom);
 	}
 }
 
@@ -1189,17 +1251,40 @@ void AThirdPersonCharacter::Zooming(float DeltaTime)
 
 }
 
+bool AThirdPersonCharacter::Get_bZoom()
+{
+	return bZoom;
+}
+
+void AThirdPersonCharacter::UpdateArmoUI()
+{
+	if (!HasAuthority() && EquipedGuns[curGun].IsValid()) {
+		FString armo, maxarmo;
+		armo = FString::FromInt(EquipedGuns[curGun]->Get_C_Armo());
+		maxarmo = FString::FromInt(EquipedGuns[curGun]->Get_M_Armo());
+		plController->GetCrosshairUI()->UpdateArmo(armo, maxarmo, curGun);
+	}
+	
+}
+
+void AThirdPersonCharacter::UpdateArmoUI(int32 curArmo, int32 MaxArmo)
+{
+	if (!HasAuthority() && EquipedGuns[curGun].IsValid()) {
+		FString armo, maxarmo;
+		armo = FString::FromInt(curArmo);
+		maxarmo = FString::FromInt(MaxArmo);
+		plController->GetCrosshairUI()->UpdateArmo(armo, maxarmo, curGun);
+
+	}
+}
+
 void AThirdPersonCharacter::ZoomOff_Implementation()
 {
 	if (EquipedGuns[curGun].IsValid()) {
 
-		if (EquipedGuns[curGun]->Get_C_Armo() <= 0 && Zoom) {
+		if (EquipedGuns[curGun]->Get_C_Armo() <= 0 && bZoom) {
 			ChangeCamera();
 		}
-		FString armo;
-		armo = FString::FromInt(EquipedGuns[curGun]->Get_C_Armo());
-		plController->GetCrosshairUI()->UpdateArmo(armo, curGun);
-
 	}
 }
 
@@ -1222,43 +1307,49 @@ void AThirdPersonCharacter::SearchGunOnMulti_Implementation(class AMyGunActor* h
 
 void AThirdPersonCharacter::Equip2()
 {
-	if (SearchGun) {
+	if (SearchGun.IsValid()) {
 		if (!EquipedGuns[0].IsValid()) {
 			Equip_FirstGun();
 			Equip_FirstGunOnServer();
 			Equip_FirstGunOnMulti();
-			plController->GetCrosshairUI()->GetFirstGun("AR");
+			plController->GetCrosshairUI()->GetFirstGun(EquipedGuns[0]->GunData.GunName);
 			ChangeGun_0();
 
-			FString armo;
+			FString armo, maxarmo;
 			armo = FString::FromInt(EquipedGuns[curGun]->Get_C_Armo());
-			plController->GetCrosshairUI()->UpdateArmo(armo, curGun);
+			maxarmo = FString::FromInt(EquipedGuns[curGun]->Get_M_Armo());
+			plController->GetCrosshairUI()->UpdateArmo(armo, maxarmo, curGun);
 		}
 		else if (!EquipedGuns[1].IsValid()) {
 			Equip_SecondGun();
 			Equip_SecondGunOnServer();
 			Equip_SecondOnMulti();
-			plController->GetCrosshairUI()->GetSecondGun("AR");
+			plController->GetCrosshairUI()->GetSecondGun(EquipedGuns[1]->GunData.GunName);
 			ChangeGun_1();
 
-			FString armo;
+			FString armo, maxarmo;
 			armo = FString::FromInt(EquipedGuns[curGun]->Get_C_Armo());
-			plController->GetCrosshairUI()->UpdateArmo(armo, curGun);
+			maxarmo = FString::FromInt(EquipedGuns[curGun]->Get_M_Armo());
+			plController->GetCrosshairUI()->UpdateArmo(armo, maxarmo, curGun);
 		}
 
-		//FP_Camera->SetRelativeLocation(FVector(0, 0, 0));
-		//FP_Camera->AttachToComponent(EquipedGun->GetSKMesh(), FAttachmentTransformRules::SnapToTargetIncludingScale, "AimSight");
 	}
 }
 
 void AThirdPersonCharacter::Equip_FirstGun()
 {
-	if (SearchGun) {
-		EquipedGuns[0] = SearchGun;
+	if (SearchGun.IsValid()) {
+
+		auto* newGun = GetWorld()->SpawnActor<AMyGunActor>(SearchGun->GetClass());
+		if (newGun) {
+			newGun->GunData = SearchGun->GunData;
+		}
+
+		EquipedGuns[0] = newGun;
 		OnRep_UpdatedEquipGun();
 
 		EquipedGuns[0]->AttachToComponent(ShotPoint, FAttachmentTransformRules::SnapToTargetIncludingScale, NAME_None);
-
+		
 		EquipedGuns[0]->Set_Equiped(true);
 
 		EquipedGuns[0]->SetMyOwner(this);
@@ -1267,7 +1358,7 @@ void AThirdPersonCharacter::Equip_FirstGun()
 
 void AThirdPersonCharacter::Equip_FirstGunOnServer_Implementation()
 {
-	if (SearchGun) {
+	if (SearchGun.IsValid()) {
 		if (HasAuthority()) {
 			Equip_FirstGunOnMulti();
 			Equip_FirstGun();
@@ -1284,8 +1375,14 @@ void AThirdPersonCharacter::Equip_FirstGunOnMulti_Implementation()
 
 void AThirdPersonCharacter::Equip_SecondGun()
 {
-	if (SearchGun) {
-		EquipedGuns[1] = SearchGun;
+	if (SearchGun.IsValid()) {
+
+		auto* newGun = GetWorld()->SpawnActor<AMyGunActor>(SearchGun->GetClass());
+		if (newGun) {
+			newGun->GunData = SearchGun->GunData;		
+		}
+
+		EquipedGuns[1] = newGun;
 		OnRep_UpdatedEquipGun();
 
 		EquipedGuns[1]->AttachToComponent(ShotPoint, FAttachmentTransformRules::SnapToTargetIncludingScale, NAME_None);
@@ -1335,4 +1432,83 @@ void AThirdPersonCharacter::Equip2OnMulti_Implementation()
 		Equip2();
 	}
 
+}
+
+void AThirdPersonCharacter::ChangeScope()
+{
+	switch (ScopeIdx)
+	{
+	case 2:
+		ScopeIdx = 4;
+		//ScopeCamera->FOVAngle = 11.0f;
+		FP_Camera->FieldOfView = 60.f;
+		break;
+	case 4:
+		ScopeIdx = 6;
+		//ScopeCamera->FOVAngle = 5.5f;
+		FP_Camera->FieldOfView = 30.f;
+		break;
+	case 6:
+		ScopeIdx = 2;
+		//ScopeCamera->FOVAngle = 22.5f;
+		FP_Camera->FieldOfView = 90.f;
+		break;
+	default:
+		ScopeIdx = 2;
+		//ScopeCamera->FOVAngle = 22.5f;
+		FP_Camera->FieldOfView = 90.f;
+		break;
+	}
+
+	ScopeCamera->UpdateContent();
+}
+
+TArray<TWeakObjectPtr<class AMyGunActor>> AThirdPersonCharacter::GetEquipedGuns()
+{
+	return EquipedGuns;
+}
+
+void AThirdPersonCharacter::SetAimSensitivity(float newAim)
+{
+	AimSensitivity = newAim;
+}
+
+float AThirdPersonCharacter::GetAimSensitivity()
+{
+	return AimSensitivity;
+}
+
+void AThirdPersonCharacter::InputChangeTarget()
+{
+	if (HasAuthority()) {
+		auto LSA = Cast<ATrainingLevelScriptActor>(GetWorld()->GetLevelScriptActor());
+		if (LSA) {
+			LSA->SetTargetMoveSpeed(EMoveSpeed::Run);
+			GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::Printf(TEXT("UI Run")));
+		}
+	}
+	auto LSA = Cast<ATrainingLevelScriptActor>(GetWorld()->GetLevelScriptActor());
+	if (LSA) {
+		LSA->SetTargetMoveSpeed(EMoveSpeed::Run);
+		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::Printf(TEXT("UI Run")));
+	}
+}
+
+void AThirdPersonCharacter::PlayerDeath()
+{
+	ThrowGunOnServer();
+	PlayAnimMontageOnServer(Anim_Death);
+	
+	blife = false;
+
+	if (plController) {
+		plController->OpenRespawnUI();
+		plController->GetCrosshairUI()->ThrowGun(0);
+		plController->GetCrosshairUI()->ThrowGun(1);
+	}
+}
+
+FVector AThirdPersonCharacter::HeadLoc()
+{
+	return HeadCapsule->GetComponentLocation();
 }

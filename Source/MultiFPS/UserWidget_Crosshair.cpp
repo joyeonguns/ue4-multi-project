@@ -2,6 +2,8 @@
 
 
 #include "UserWidget_Crosshair.h"
+#include <Kismet/GameplayStatics.h>
+#include "MyGameInstance.h"
 
 void UUserWidget_Crosshair::NativeConstruct()
 {
@@ -9,7 +11,7 @@ void UUserWidget_Crosshair::NativeConstruct()
 
 	Image_UpAim = Cast<UImage>(GetWidgetFromName(TEXT("UpAim")));
 	Image_DownAim = Cast<UImage>(GetWidgetFromName(TEXT("DownAim")));
-	Image_LeftAim = Cast<UImage>(GetWidgetFromName(TEXT("leftAim")));
+	Image_LeftAim = Cast<UImage>(GetWidgetFromName(TEXT("LeftAim")));
 	Image_RightAim = Cast<UImage>(GetWidgetFromName(TEXT("RightAim")));
 
 	ImageSlot_Up = Cast<UCanvasPanelSlot>(Image_UpAim->Slot);
@@ -33,13 +35,20 @@ void UUserWidget_Crosshair::NativeConstruct()
 
 	FirstGunPannel = Cast<UCanvasPanel>(GetWidgetFromName(TEXT("Weapon1_Pannel")));
 	FirstGunName = Cast<UTextBlock>(GetWidgetFromName(TEXT("GunName_1")));
-	FirstGunArmo = Cast<UTextBlock>(GetWidgetFromName(TEXT("Armo_1")));
+	FirstGunCurArmo = Cast<UTextBlock>(GetWidgetFromName(TEXT("Weapon1_CurArmo")));
+	FirstGunMaxArmo = Cast<UTextBlock>(GetWidgetFromName(TEXT("Weapon1_MaxArmo")));
 	FirstGunPannel->SetVisibility(ESlateVisibility::Hidden);
 
 	SecondGunPannel = Cast<UCanvasPanel>(GetWidgetFromName(TEXT("Weapon2_Pannel")));
 	SecondGunName = Cast<UTextBlock>(GetWidgetFromName(TEXT("GunName_2")));
-	SecondGunArmo = Cast<UTextBlock>(GetWidgetFromName(TEXT("Armo_2")));
+	SecondGunCurArmo = Cast<UTextBlock>(GetWidgetFromName(TEXT("Weapon2_CurArmo")));
+	SecondGunMaxArmo = Cast<UTextBlock>(GetWidgetFromName(TEXT("Weapon2_MaxArmo")));
 	SecondGunPannel->SetVisibility(ESlateVisibility::Hidden);
+
+
+	Kill = Cast<UTextBlock>(GetWidgetFromName(TEXT("TextBlock_Kill")));
+	Death = Cast<UTextBlock>(GetWidgetFromName(TEXT("TextBlock_Death")));
+	Damage = Cast<UTextBlock>(GetWidgetFromName(TEXT("TextBlock_Damage")));
 }
 
 void UUserWidget_Crosshair::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
@@ -50,6 +59,12 @@ void UUserWidget_Crosshair::NativeTick(const FGeometry& MyGeometry, float InDelt
 		CurrentDistance += InDeltaTime * MaXDistance * 5;
 		SetAim();
 	}
+	auto GameInst = Cast<UMyGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
+	if (GameInst) {
+		Kill->SetText(FText::FromString(FString::FromInt(GameInst->Kill)));
+		Death->SetText(FText::FromString(FString::FromInt(GameInst->Death)));
+		Damage->SetText(FText::FromString(FString::FromInt(GameInst->Damage)));
+	}	
 }
 
 void UUserWidget_Crosshair::SetOpenAim()
@@ -186,16 +201,18 @@ void UUserWidget_Crosshair::SelectFirstGun()
 	}
 }
 
-void UUserWidget_Crosshair::UpdateArmo(FString curArmo, int32 gunNum)
+void UUserWidget_Crosshair::UpdateArmo(FString curArmo, FString MaxArmo, int32 gunNum)
 {
 	if (gunNum == 0) {
-		if (FirstGunArmo) {
-			FirstGunArmo->SetText(FText::FromString(curArmo));
+		if (FirstGunCurArmo && FirstGunMaxArmo) {
+			FirstGunCurArmo->SetText(FText::FromString(curArmo));
+			FirstGunMaxArmo->SetText(FText::FromString(MaxArmo));
 		}
 	}
 	else if (gunNum == 1) {
-		if (SecondGunArmo) {
-			SecondGunArmo->SetText(FText::FromString(curArmo));
+		if (SecondGunCurArmo && SecondGunMaxArmo) {
+			SecondGunCurArmo->SetText(FText::FromString(curArmo));
+			SecondGunMaxArmo->SetText(FText::FromString(MaxArmo));
 		}
 	}
 }
@@ -206,8 +223,8 @@ void UUserWidget_Crosshair::GetSecondGun(FString GunName)
 		SecondGunPannel->SetVisibility(ESlateVisibility::Visible);
 	}
 
-	if (FirstGunName) {
-		FirstGunName->SetText(FText::FromString(GunName));
+	if (SecondGunName) {
+		SecondGunName->SetText(FText::FromString(GunName));
 	}
 }
 

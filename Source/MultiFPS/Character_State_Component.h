@@ -59,6 +59,10 @@ public:
 	TWeakObjectPtr<class AThirdPersonCharacter> player;
 
 
+	float GetShield();
+	float GetHp();
+
+
 private:
 	UPROPERTY(Replicated, EditAnywhere, Category = Stat)
 		float MaxHp = 100.0f;
@@ -75,6 +79,6 @@ private:
 	UPROPERTY(Replicated, EditAnywhere, Category = Stat)
 		float CurSpeed = 1.0f;
 
-
+	UPROPERTY(Replicated, EditAnywhere, Category = Stat)
 	float ShieldRegenTime = 3.0f;
 };

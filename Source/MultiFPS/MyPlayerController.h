@@ -10,6 +10,8 @@
 #include "Character_State_Component.h"
 #include "Charater_SKill_Component.h"
 #include "UserWidget_TeamSelecUI.h"
+#include "UserWidget_TrainingSettingMenu.h"
+#include "UserWidget_Dead.h"
 #include "MyPlayerController.generated.h"
 
 /**
@@ -28,6 +30,7 @@ public:
 	virtual void SetupInputComponent() override;
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
 
 	UFUNCTION(server, Reliable)
 		void SendTextOnServer(const FString& chat);
@@ -60,6 +63,15 @@ public:
 
 	class UUserWidget_Crosshair* GetCrosshairUI();
 
+	void InputESC();
+	void OpenSetting();
+	void CloseSetting();
+
+	void OpenRespawnUI();
+	void CloseRespawnUI();
+
+	void RespawnPlayer();
+
 
 private:
 	UPROPERTY(EditAnywhere, Category = UI)
@@ -82,6 +94,17 @@ private:
 		TSubclassOf<UUserWidget_TeamSelecUI> TeamUIClass;
 	UPROPERTY(EditAnywhere, Category = UI)
 		class UUserWidget_TeamSelecUI* TeamUIInstance;
+
+	UPROPERTY(EditAnywhere, Category = UI)
+		TSubclassOf<UUserWidget_TrainingSettingMenu> TrainSettingUIClass;
+	UPROPERTY(EditAnywhere, Category = UI)
+		class UUserWidget_TrainingSettingMenu* TrainSettingUIInstance;
+
+	UPROPERTY(EditAnywhere, Category = UI)
+		TSubclassOf<UUserWidget_Dead> DeadUIClass;
+	UPROPERTY(EditAnywhere, Category = UI)
+		class UUserWidget_Dead* DeadUIInstance;
+
 
 	TWeakObjectPtr<class UCharacter_State_Component> CurrentStateComponent;
 	TWeakObjectPtr<class UCharater_SKill_Component> CurrentSkillComponent;
