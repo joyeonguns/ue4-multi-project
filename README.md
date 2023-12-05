@@ -74,18 +74,34 @@
 
 **UserWidget_ChatLogs** 
 
-    
+    플래이어가 입력한 채팅을 입력시 생성되어 UserWidget_ChatUI를 통해 모든 클라이언트에 보여줌
 
 **UserWidget_ChatUI**
 
+    생성된 UserWidget_ChatLogs 가 저장및 플래이어에게 보여줌
+
 **UserWidget_Crosshair**
+
+    쉴드, 체력, 스킬 쿨타임, 크로스헤어 등을 보여주는 전투 UI
 
 **UserWidget_DamageText**
 
+    ActorComponent_FloatingDamag를 통해 데미지텍스트를 보여줌
+    Userwidget의 Animation 기능을 이용하여 텍스트에 효과를 줌    
+    
+
 **UserWidget_Dead**
+
+    캐릭터가 사망시 나오는 Userwidget, 버튼을 눌러 리스폰
 
 **UserWidget_TeamSelecUI**
 
+    게임시작시 생성되는 Userwidget Red팀 Blue팀 중 선택
+
 **UserWidget_TrainingSettingMenu.**
+
+    게임의 메뉴 Userwidget
+    기본 메뉴에서 해상도 변경, 마우스 감도, 팀 선택, 사운드 크기 등을 제어 
+    훈련 메뉴에서 이동 타겟의 속도, 에임 테스트의 난이도 제어
 
 Developed with Unreal Engine 4
