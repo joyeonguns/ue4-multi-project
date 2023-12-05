@@ -6,7 +6,7 @@
 
 ## 클래스에 관한정보
 
-### 1. 캐릭터 클래스
+## 1. 캐릭터 클래스
 
 **ThirdPersonCharacter** 
 
@@ -15,14 +15,14 @@
     줌 상태와 일반상태의 카메라 및 하위오브젝트 상태 전환                
   
 
-### 2. 플레이어 컨트롤러 클래스
+## 2. 플레이어 컨트롤러 클래스
 
 **MyPlayerController** 
 
     각종 Userwidget의 생성 및 제거, 접근 제어 
 
 
-### 3. ActorComponent 클래스
+## 3. ActorComponent 클래스
 
 **Character_State_Component** 
 
@@ -47,7 +47,7 @@
     
 
 
-### 4. Actor 클래스
+## 4. Actor 클래스
 
 **MyGunActor**
 
