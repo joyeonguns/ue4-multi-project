@@ -5,7 +5,7 @@
 ![스크린샷 2023-11-30 215702](https://github.com/joyeonguns/ue4-multi-project/assets/85017198/b375218c-81d1-4e36-9c82-57556e30beb0)
 
 ## 클래스에 관한정보
-
+<br/>
 ## 1. 캐릭터 클래스
 
 **ThirdPersonCharacter** 
@@ -14,14 +14,14 @@
     레이케스트를 통한 상호작용 오브젝트 검출      
     줌 상태와 일반상태의 카메라 및 하위오브젝트 상태 전환                
   
-
+<br/>
 ## 2. 플레이어 컨트롤러 클래스
 
 **MyPlayerController** 
 
     각종 Userwidget의 생성 및 제거, 접근 제어 
 
-
+<br/>
 ## 3. ActorComponent 클래스
 
 **Character_State_Component** 
@@ -46,7 +46,7 @@
     Camerashake 클래스를 통해 플래이어의 카메라를 흔들어줌
     
 
-
+<br/>
 ## 4. Actor 클래스
 
 **MyGunActor**
@@ -64,14 +64,14 @@
     충돌된 오브젝트가 다른팀 플래이어 or 훈련봇일 데미지텍스트 생성 및 데미지적용
     충돌한 플래이어의 경우 CameraShake에임펀치
 
-    
+<br/>    
 ## 5. CameraShake 클래스
 
 **MyMatineeCameraShake**
 
     플래이어의 카메라를 흔들어줌
 
-
+<br/>
 ## 6. UserWidget 클래스
 
 **UserWidget_ChatLogs** 
@@ -91,7 +91,6 @@
     ActorComponent_FloatingDamag를 통해 데미지텍스트를 보여줌
     Userwidget의 Animation 기능을 이용하여 텍스트에 효과를 줌    
     
-
 **UserWidget_Dead**
 
     캐릭터가 사망시 나오는 Userwidget, 버튼을 눌러 리스폰
