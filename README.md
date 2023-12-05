@@ -6,6 +6,7 @@
 
 ## 클래스에 관한정보
 <br/>
+
 ## 1. 캐릭터 클래스
 
 **ThirdPersonCharacter** 
@@ -15,6 +16,7 @@
     줌 상태와 일반상태의 카메라 및 하위오브젝트 상태 전환                
   
 <br/>
+
 ## 2. 플레이어 컨트롤러 클래스
 
 **MyPlayerController** 
@@ -22,6 +24,7 @@
     각종 Userwidget의 생성 및 제거, 접근 제어 
 
 <br/>
+
 ## 3. ActorComponent 클래스
 
 **Character_State_Component** 
@@ -47,6 +50,7 @@
     
 
 <br/>
+
 ## 4. Actor 클래스
 
 **MyGunActor**
@@ -65,6 +69,7 @@
     충돌한 플래이어의 경우 CameraShake에임펀치
 
 <br/>    
+
 ## 5. CameraShake 클래스
 
 **MyMatineeCameraShake**
@@ -72,6 +77,7 @@
     플래이어의 카메라를 흔들어줌
 
 <br/>
+
 ## 6. UserWidget 클래스
 
 **UserWidget_ChatLogs** 
