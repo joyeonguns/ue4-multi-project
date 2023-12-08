@@ -2,7 +2,9 @@
 
 ### UnrealEngine4의 Dedicated Server를 통한 MultiPlay 환경 FPS 게임입니다.
 ## 동영상
-[![스크린샷 2023-11-29 183824](https://github.com/joyeonguns/ue4-multi-project/assets/85017198/8affa7f9-bcc0-4764-9982-7b7859c2c7d9)(https://youtu.be/_6Vk6LrY_8Q)/0.jpg)](https://youtu.be/_6Vk6LrY_8Q)
+
+[![Video Label](![스크린샷 2023-11-28 182045](https://github.com/joyeonguns/ue4-multi-project/assets/85017198/f0637d3e-e50f-4030-84b9-af45f20ee5d5))]([유투브링크](https://youtu.be/_6Vk6LrY_8Q))
+
 ## 이미지
 
 
