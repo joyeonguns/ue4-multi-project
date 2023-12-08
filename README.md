@@ -2,8 +2,7 @@
 
 ### UnrealEngine4의 Dedicated Server를 통한 MultiPlay 환경 FPS 게임입니다.
 ## 동영상
-https://youtu.be/_6Vk6LrY_8Q
-[![IU(아이유) _ Into the I-LAND](http://img.youtube.com/vi/QYNwbZHmh8g/0.jpg)](https://youtu.be/QYNwbZHmh8g?t=0s) 
+[![Video Label](http://img.youtube.com/vi/59USvjy2toI/0.jpg)](https://youtu.be/59USvjy2toI)
 ## 이미지
 
 ![스크린샷 2023-11-30 215702](https://github.com/joyeonguns/ue4-multi-project/assets/85017198/b375218c-81d1-4e36-9c82-57556e30beb0)
